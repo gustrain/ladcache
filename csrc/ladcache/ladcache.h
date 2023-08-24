@@ -95,15 +95,19 @@ typedef struct {
 
 /* Complete/total cache state. */
 typedef struct cache {
-    char     name[MAX_NAME_LEN + 1];        /* Name of this cache. */
-    char     shm_name[MAX_NAME_LEN + 2];    /* Prefix for shm objects. */
-    lcache_t lcache;                        /* Local cache. */
-    rcache_t rcache;                        /* Remote cache. */
+    char        name[MAX_NAME_LEN + 1];         /* Name of this cache. */
+    char        shm_name[MAX_NAME_LEN + 2];     /* Prefix for shm objects. */
+    lcache_t    lcache;                         /* Local cache. */
+    rcache_t    rcache;                         /* Remote cache. */
+    int         n_users;                        /* Number of users. */
+
+    /* Shared memory with users. */
+    int         qdepth;                         /* Queue depth. */
+    request_t  *requests;                       /* Array of (N_USERS+1)*QDEPTH
+                                                   request structs. The extra
+                                                   is for remote requests. */
 
     /* Status queues. */
-    int         n_users;    /* Number of users (one queue set per user). There
-                               will also be an additional queue set for the
-                               "remote user", with USER_ID 0. */
     request_t **free;       /* Unused request structs. */
     request_t **ready;      /* Requests prepared by users or network monitor. */
     request_t **done;       /* Requests that have been served. */
