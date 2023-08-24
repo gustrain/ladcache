@@ -25,6 +25,9 @@
 #include <pthread.h>
 #include "../utils/uthash.h"
 
+#ifndef __CACHE_H__
+#define __CACHE_H__
+
 #define MAX_PATH_LEN (128)
 
 /* File load request (queue entry). Shared memory accessible by both API users
@@ -112,3 +115,5 @@ typedef struct cache {
     request_t **ready;      /* Requests prepared by users or network monitor. */
     request_t **done;       /* Requests that have been served. */
 } cache_t;
+
+#endif
