@@ -80,11 +80,12 @@ monitor_loop(cache_t *c)
     /* TODO. */
 }
 
-/* Spawn a thread running MONITOR_LOOP. */
+/* Spawns a new thread running the monitor loop. Returns 0 on success, -errno on
+   failure. */
 int
-cache_spawn_monitor(cache_t *c)
+monitor_spawn(cache_t *c)
 {
-    /* TODO. */
+    return -pthread_create(&c->monitor_thread, NULL, monitor_loop, c);
 }
 
 
@@ -141,18 +142,68 @@ cache_remote_load(rcache_t *rc, char *path, size_t *size)
 /*   MANAGER   */
 /* ----------- */
 
-/* Manager main loop. Handles all pending requests. */
+/* Check whether */
 void
-manager_loop(cache_t *c)
+manager_check_ready(cache_t *c, ustate_t *ustate)
+{
+    request_t *pending;
+
+    /* Check if there's a request waiting in the ready queue. */
+    QUEUE_POP_SAFE(ustate->ready, &ustate->read_lock, next, prev, pending);
+    if (pending == NULL) {
+        return;
+    }
+
+    /* Check the local cache. */
+    if (cache_local_contains(&c->lcache, pending->path)) {
+        /* TODO. */
+
+        QUEUE_PUSH_SAFE(&ustate->done, &ustate->done_lock, next, prev, pending);
+    }
+
+    /* Check the remote cache. */
+    if (cache_remote_contains(&c->rcache, pending->path)) {
+        /* TODO. */
+
+        QUEUE_PUSH(&ustate->network_inflight, next, prev, pending);
+    }
+
+    /* If not cached, issue IO. */
+
+    /* TODO. */
+
+    QUEUE_PUSH(&ustate->storage_inflight, next, prev, pending);
+}
+
+/* Check if any storage requests have completed their IO. Note that the network
+   monitor handles completed network requests. */
+void
+manager_check_done(cache_t *c, ustate_t *ustate)
 {
     /* TODO. */
 }
 
-/* */
+/* Manager main loop. Handles all pending requests. */
 void
+manager_loop(cache_t *c)
+{
+    ustate_t *ustate;
+    request_t *pending;
+
+    /* Loop round-robin through the user ustates and check for pending and
+       completed requests that require status queue updates. */
+    for (unsigned i = 0; true; ustate = &c->ustates[i++ % c->n_users]) {
+        manager_check_ready(c, ustate);
+        manager_check_done(c, ustate);
+    }
+}
+
+/* Spawns a new thread running the manager loop. Returns 0 on success, -errno on
+   failure. */
+int
 manager_spawn(cache_t *c)
 {
-    /* TODO. */
+    return -pthread_create(&c->manager_thread, NULL, manager_loop, c);
 }
 
 

@@ -116,6 +116,10 @@ typedef struct {
     int         n_users;    /* Number of users. */
     int         qdepth;     /* Queue depth. */
 
+    /* Threading info. */
+    pthread_t manager_thread;
+    pthread_t monitor_thread;
+
     /* User-shared memory. */
     ustate_t *ustates;  /* N_USERS + 1 user states. +1 for remote requests. */
 } cache_t;
