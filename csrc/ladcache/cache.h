@@ -63,9 +63,9 @@ typedef struct local_location {
     void   *data;                           /* Pointer to shm obj's memory. */
     size_t  size;                           /* Size of file in bytes. */
 
-    /* Free/new list. */
-    struct local_location *next;    /* Next entry in the free/new list. */
-    struct local_location *prev;    /* Previous entry in the free/new list. */
+    /* Update (new) list. */
+    struct local_location *next;    /* Next entry in the new list. */
+    struct local_location *prev;    /* Previous entry in the new list. */
 
     /* Hash table. */
     UT_hash_handle hh;
@@ -77,24 +77,20 @@ typedef struct remote_location {
     uint16_t port;  /* Port of file owner. */
     size_t   size;  /* Size of file in bytes. */
 
-    /* Free list. */
-    struct remote_location *next;   /* Next entry in the free list. */
-    struct remote_location *prev;   /* Previous entry in the free list. */
-
     /* Hash table. */
     UT_hash_handle hh;
 } rloc_t;
 
 /* Local cache state. */
 typedef struct {
-    lloc_t ht;         /* Hash table. */
-    size_t capacity;   /* Maximum capacity of cache in bytes. */
-    size_t used;       /* Current usage of cache in bytes. */
+    lloc_t *ht;         /* Hash table. */
+    size_t  capacity;   /* Maximum capacity of cache in bytes. */
+    size_t  used;       /* Current usage of cache in bytes. */
 } lcache_t;
 
 /* Remote cache state. */
 typedef struct {
-    rloc_t ht;  /* Hash table. */
+    rloc_t *ht;     /* Hash table. */
 } rcache_t;
 
 /* User states. Private between users, shared with loader. */
@@ -120,7 +116,7 @@ typedef struct {
     int         qdepth;     /* Queue depth. */
 
     /* User-shared memory. */
-    ustate_t **ustates; /* N_USERS + 1 user states. +1 for remote requests. */
+    ustate_t *ustates;  /* N_USERS + 1 user states. +1 for remote requests. */
 } cache_t;
 
 #endif

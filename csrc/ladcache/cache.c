@@ -75,9 +75,9 @@ cache_spawn_monitor(cache_t *c)
 }
 
 
-/* ---------------------------------------- */
-/*   LOCAL CACHE INTERFACE (shared scope)   */
-/* ---------------------------------------- */
+/* ------------------------- */
+/*   LOCAL CACHE INTERFACE   */
+/* ------------------------- */
 
 /* Checks the local cache for PATH. Returns TRUE if contained, FALSE if not. */
 bool
@@ -103,9 +103,9 @@ cache_local_load(lcache_t *lc, char *path, size_t *size)
     /* TODO. */
 }
 
-/* ----------------------------------------- */
-/*   REMOTE CACHE INTERFACE (shared scope)   */
-/* ----------------------------------------- */
+/* -------------------------- */
+/*   REMOTE CACHE INTERFACE   */
+/* -------------------------- */
 
 /* Checks the remote cache for PATH. Returns TRUE if contained, FALSE if not. */
 bool
@@ -188,11 +188,11 @@ cache_get_reap(ustate_t *user, request_t *out)
 /*   ALLOCATION   */
 /* -------------- */
 
-/* Allocate a complete cache. */
-int
-cache_init(cache_t *c, int queue_depth, int n_users)
+/* Get a cache_t struct using shared memory. Returns NULL on failure. */
+cache_t *
+cache_new(void)
 {
-    /* TODO. */
+    return mmap_alloc(sizeof(cache_t));
 }
 
 /* Destroy a complete cache. */
@@ -200,4 +200,61 @@ void
 cache_destroy(cache_t *c)
 {
     /* TODO. */
+}
+
+/* Allocate a complete cache. Returns 0 on success and -errno on failure. */
+int
+cache_init(cache_t *c, size_t capacity, int queue_depth, int n_users)
+{
+    /* Allocate user states. */
+    if ((c->ustates = mmap_alloc(n_users * sizeof(ustate_t))) == NULL) {
+        return -ENOMEM;
+    }
+
+    /* Initialize user states. */
+    for (int i = 0; i < c->n_users; i++) {
+        ustate_t *ustate = &c->ustates[i];
+
+        /* Allocate requests (queue entries). */
+        if ((ustate->free = mmap_alloc(queue_depth * sizeof(request_t))) == NULL) {
+            cache_destroy(c);
+            return -ENOMEM;
+        }
+
+        /* Initialize requests. */
+        for (int j = 0; j < queue_depth; j++) {
+            ustate->free[i].next = &ustate->free[(i + 1) % queue_depth];
+            ustate->free[i].prev = &ustate->free[(i - 1) % queue_depth];
+        }
+
+        /* Ensure the list is NULL terminated. */
+        ustate->free[0].prev = NULL;
+        ustate->free[queue_depth - 1].next = NULL;
+        
+
+        /* The other queues start empty. */
+        ustate->ready = NULL;
+        ustate->storage_inflight = NULL;
+        ustate->network_inflight = NULL;
+        ustate->done = NULL;
+
+        /* Initialize the locks. */
+        pthread_spinlock_init(&ustate->free_lock, PTHREAD_PROCESS_SHARED);
+        pthread_spinlock_init(&ustate->ready_lock, PTHREAD_PROCESS_SHARED);
+        pthread_spinlock_init(&ustate->done_lock, PTHREAD_PROCESS_SHARED);
+    }
+
+    /* Set up the local cache. */
+    c->lcache.ht = NULL;
+    c->lcache.capacity = capacity;
+    c->lcache.used = 0;
+
+    /* Set up the remote cache. */
+    c->rcache.ht = NULL;
+
+    /* Set up the total cache. */
+    c->n_users = n_users;
+    c->qdepth = queue_depth;
+
+    return 0;
 }
