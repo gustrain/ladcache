@@ -195,11 +195,27 @@ cache_new(void)
     return mmap_alloc(sizeof(cache_t));
 }
 
-/* Destroy a complete cache. */
+/* Destroy a complete cache. Allows for the destruction of both partially and
+   fully allocated caches. */
 void
 cache_destroy(cache_t *c)
 {
-    /* TODO. */
+    if (c == NULL) {
+        return;
+    }
+
+    if (c->ustates != NULL) {
+        /* Free the queues. */
+        for (int i = 0; i < c->n_users; i++) {
+            mmap_free(c->ustates[i].head, c->qdepth * sizeof(request_t));
+        }
+
+        /* Free the user states. */
+        mmap_free(c->ustates, c->n_users * sizeof(ustate_t));
+    }
+
+    /* Destroy the cache struct itself. */
+    mmap_free(c, sizeof(cache_t));
 }
 
 /* Allocate a complete cache. Returns 0 on success and -errno on failure. */
@@ -220,6 +236,7 @@ cache_init(cache_t *c, size_t capacity, int queue_depth, int n_users)
             cache_destroy(c);
             return -ENOMEM;
         }
+        ustate->head = ustate->free;
 
         /* Initialize requests. */
         for (int j = 0; j < queue_depth; j++) {

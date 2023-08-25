@@ -96,6 +96,7 @@ typedef struct {
 /* User states. Private between users, shared with loader. */
 typedef struct {
     /* Status queues. */
+    request_t *head;                /* Only used for teardown. */
     request_t *free;                /* Unused request_t structs. */
     request_t *ready;               /* Ready requests waiting to be executed. */
     request_t *storage_inflight;    /* Requests being served by storage. */
