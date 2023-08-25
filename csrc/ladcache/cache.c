@@ -29,17 +29,30 @@
 #include <stdbool.h>
 #include <pthread.h>
 #include <errno.h>
+#include <assert.h>
 
 #define N_HT_LOCKS
+
+#define MIN(a, b) (a) > (b) ? (a) : (b)
 
 /* --------- */
 /*   MISC.   */
 /* --------- */
 
+/* Copy IN to OUT, but reformatted to fit shm naming requirements. */
 void
 shmify(char *in, char *out, size_t in_length, size_t out_length)
 {
-    /* TODO. */
+    assert(out_length > 0);
+
+    out[0] = '/';
+    for (int i = 0; i < MIN(in_length, out_length - 1); i++) {
+        /* Replace all occurences of '/' with '_'. */
+        out[i + 1] = in[i] == '/' ? '_' : in[i];
+        if (in[i] == '\0') {
+            break;
+        }
+    }
 }
 
 /* ----------- */
