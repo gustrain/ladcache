@@ -108,11 +108,8 @@ cache_local_store(lcache_t *lc, char *path, uint8_t *data, size_t size)
     /* TODO. */
 }
 
-/* Load the file at PATH from the local cache. Return a pointer to the file data
-   in an shm object named with the shm-ified filename. Returns NULL on
-   failure. */
-uint8_t *
-cache_local_load(lcache_t *lc, char *path, size_t *size)
+int
+cache_local_load(lcache_t *lc, request_t *request)
 {
     /* TODO. */
 }
@@ -128,11 +125,8 @@ cache_remote_contains(rcache_t *rc, char *path)
     /* TODO. */
 }
 
-/* Load the file at PATH from the remote cache. Return a pointer to the file
-   data in an shm object named with the shm-ified filename. Returns NULL on
-   failure. */
-uint8_t *
-cache_remote_load(rcache_t *rc, char *path, size_t *size)
+int
+cache_remote_load(rcache_t *rc, request_t *request)
 {
     /* TODO. */
 }
@@ -142,8 +136,9 @@ cache_remote_load(rcache_t *rc, char *path, size_t *size)
 /*   MANAGER   */
 /* ----------- */
 
-/* Check whether */
-void
+/* Check whether USTATE has a pending request, and execute it if it does.
+   Returns 0 on sucess, -errno on failure. */
+int
 manager_check_ready(cache_t *c, ustate_t *ustate)
 {
     request_t *pending;
@@ -151,19 +146,27 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
     /* Check if there's a request waiting in the ready queue. */
     QUEUE_POP_SAFE(ustate->ready, &ustate->read_lock, next, prev, pending);
     if (pending == NULL) {
-        return;
+        return 0;
     }
 
     /* Check the local cache. */
     if (cache_local_contains(&c->lcache, pending->path)) {
-        /* TODO. */
+        int status = cache_local_load(&c->lcache, pending);
+        if (status < 0) {
+            /* ISSUE: we leak a request struct here. */
+            return status;
+        }
 
         QUEUE_PUSH_SAFE(&ustate->done, &ustate->done_lock, next, prev, pending);
     }
 
     /* Check the remote cache. */
     if (cache_remote_contains(&c->rcache, pending->path)) {
-        /* TODO. */
+        int status = cache_remote_load(&c->rcache, pending);
+        if (status < 0) {
+            /* ISSUE: we leak a request struct here. */
+            return status;
+        }
 
         QUEUE_PUSH(&ustate->network_inflight, next, prev, pending);
     }
@@ -176,8 +179,9 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
 }
 
 /* Check if any storage requests have completed their IO. Note that the network
-   monitor handles completed network requests. */
-void
+   monitor handles completed network requests. Returns 0 on sucess, -errno on
+   failure. */
+int
 manager_check_done(cache_t *c, ustate_t *ustate)
 {
     /* TODO. */
