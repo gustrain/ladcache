@@ -29,6 +29,7 @@
 #define __CACHE_H__
 
 #define MAX_PATH_LEN (128)
+#define MAX_NAME_LEN (128)
 
 /* File load request (queue entry). Shared memory accessible by both API users
    and the ladcache loader process. */
@@ -96,24 +97,30 @@ typedef struct {
     rloc_t ht;  /* Hash table. */
 } rcache_t;
 
-/* Complete/total cache state. */
-typedef struct cache {
-    char        name[MAX_NAME_LEN + 1];         /* Name of this cache. */
-    char        shm_name[MAX_NAME_LEN + 2];     /* Prefix for shm objects. */
-    lcache_t    lcache;                         /* Local cache. */
-    rcache_t    rcache;                         /* Remote cache. */
-    int         n_users;                        /* Number of users. */
-
-    /* Shared memory with users. */
-    int         qdepth;                         /* Queue depth. */
-    request_t  *requests;                       /* Array of (N_USERS+1)*QDEPTH
-                                                   request structs. The extra
-                                                   is for remote requests. */
-
+/* User states. Private between users, shared with loader. */
+typedef struct {
     /* Status queues. */
-    request_t **free;       /* Unused request structs. */
-    request_t **ready;      /* Requests prepared by users or network monitor. */
-    request_t **done;       /* Requests that have been served. */
+    request_t *free;                /* Unused request_t structs. */
+    request_t *ready;               /* Ready requests waiting to be executed. */
+    request_t *storage_inflight;    /* Requests being served by storage. */
+    request_t *network_inflight;    /* Requests being served by network. */
+    request_t *done;                /* Fulfilled requests. */
+
+    /* Synchronization. */
+    pthread_spinlock_t free_lock;
+    pthread_spinlock_t ready_lock;
+    pthread_spinlock_t done_lock;
+} ustate_t;
+
+/* Complete/total cache state. */
+typedef struct {
+    lcache_t    lcache;     /* Local cache. */
+    rcache_t    rcache;     /* Remote cache. */
+    int         n_users;    /* Number of users. */
+    int         qdepth;     /* Queue depth. */
+
+    /* User-shared memory. */
+    ustate_t **ustates; /* N_USERS + 1 user states. +1 for remote requests. */
 } cache_t;
 
 #endif
