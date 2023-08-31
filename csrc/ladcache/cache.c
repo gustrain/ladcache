@@ -30,8 +30,12 @@
 #include <pthread.h>
 #include <errno.h>
 #include <assert.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 
-#define N_HT_LOCKS
+#define N_HT_LOCKS 16
+#define PORT_DEFAULT 8080
+#define MAX_QUEUE_REQUESTS 64
 
 #define MIN(a, b) (a) > (b) ? (a) : (b)
 
@@ -68,16 +72,55 @@ cache_register(cache_t *c)
 
 /* Handles a remote read request. */
 void
-monitor_handle_connection(request_t *r)
+monitor_handle_connection(void *arg)
 {
+    int client_fd = (int) arg;
     /* TODO. */
 }
 
-/* Monitor main loop. Handles all incoming remote read requests. */
-void
+/* Monitor main loop. Handles all incoming remote read requests. Should never
+   return when running correctly. On failure returns negative errno value. */
+int
 monitor_loop(cache_t *c)
 {
-    /* TODO. */
+    
+    /* Open the listening socket. */
+    int lfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (lfd < 0) {
+        return -errno;
+    }
+
+    /* Allow address to be re-used. */
+    int opt = 1;
+    if (setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) { /* Needed? */
+        return -errno;
+    }
+
+    /* Bind to PORT_DEFAULT. */
+    struct sockaddr_in addr;
+    int len = sizeof(addr);
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = INADDR_ANY;
+    addr.sin_port = htons(PORT_DEFAULT);
+    if (bind(lfd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        return -errno;
+    }
+
+    /* Start listening. */
+    if (listen(lfd, MAX_QUEUE_REQUESTS)) {
+        return -errno;
+    }
+
+    while (true) {
+        int cfd = accept(lfd, (struct sockaddr *) &addr, (socklen_t *) &len);
+        if (cfd >= 0) {
+            pthread_t tid; /* This thread will terminate gracefully on its own and we don't need to track it. */
+            pthread_create(&tid, NULL, &monitor_handle_connection, (void *) cfd);
+        }
+    }
+
+    /* Not reached. */
+    return 0;
 }
 
 /* Spawns a new thread running the monitor loop. Returns 0 on success, -errno on
@@ -113,6 +156,7 @@ cache_local_load(lcache_t *lc, request_t *request)
 {
     /* TODO. */
 }
+
 
 /* -------------------------- */
 /*   REMOTE CACHE INTERFACE   */
