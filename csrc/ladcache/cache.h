@@ -44,7 +44,6 @@ typedef struct file_request {
     /* Loader state. */
     void *_ldata;       /* Loader's pointer to the shm object's memory. */
     int   _lfd_shm;     /* Loader's FD for the shm object. */
-    int   _lfd_file;    /* Loader's FD for the file being loaded. */
 
     /* User state. */
     void *udata;        /* User's pointer to the shm object's memory. */

@@ -219,10 +219,24 @@ cache_local_store(lcache_t *lc, char *path, uint8_t *data, size_t size)
     return 0;
 }
 
+/* Fill a request with data from the local cache. Returns 0 on success, -errno
+   on failure. */
 int
 cache_local_load(lcache_t *lc, request_t *request)
 {
-    /* TODO. */
+    /* Get the location record of the cached file. */
+    lloc_t *loc = NULL;
+    HASH_FIND_STR(lc->ht, request->path, loc);
+    if (loc == NULL) {
+        DEBUG_LOG("attempted to load uncached file; %s", request->path);
+        return -ENOENT;
+    }
+
+    /* Fill the request. */
+    request->_ldata = loc->data;
+    request->_lfd_shm = loc->shm_fd;
+
+    return 0;
 }
 
 
