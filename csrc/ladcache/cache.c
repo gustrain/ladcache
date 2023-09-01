@@ -528,6 +528,7 @@ cache_destroy(cache_t *c)
         /* Free the queues. */
         for (int i = 0; i < c->n_users; i++) {
             mmap_free(c->ustates[i].head, c->qdepth * sizeof(request_t));
+            io_uring_queue_exit(&c->ustates[i].ring);
         }
 
         /* Free the user states. */
@@ -536,8 +537,6 @@ cache_destroy(cache_t *c)
 
     /* Destroy the cache struct itself. */
     mmap_free(c, sizeof(cache_t));
-
-    /* TODO: are we missing any io_uring stuff? */
 }
 
 /* Allocate a complete cache. Returns 0 on success and -errno on failure. */
