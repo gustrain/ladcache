@@ -32,6 +32,7 @@
 #define MAX_PATH_LEN (128)                      /* Not including \0. */
 #define MAX_SHM_PATH_LEN (MAX_PATH_LEN + 1)     /* Not including \0. */
 #define MAX_NAME_LEN (128)                      /* Not including \0. */
+#define MAX_SYNC_SIZE (16 * 1024 * (MAX_PATH_LEN + 1))
 
 /* File load request (queue entry). Shared memory accessible by both API users
    and the ladcache loader process. */
@@ -46,6 +47,8 @@ typedef struct file_request {
     void *_ldata;       /* Loader's pointer to the shm object's memory. */
     int   _lfd_shm;     /* Loader's FD for the shm object. */
     int   _lfd_file;    /* Loader's FD for the file being loaded. */
+    bool  _skip_clean;  /* Whether to skip shm cleanup for this request. Set to
+                           prevent shm cleanup for newly cached items. */
 
     /* User state. */
     void *udata;        /* User's pointer to the shm object's memory. */
@@ -87,6 +90,7 @@ typedef struct remote_location {
 /* Local cache state. */
 typedef struct {
     lloc_t *ht;         /* Hash table. */
+    lloc_t *unsynced;   /* Link list of unsynced filenames. */
     size_t  capacity;   /* Maximum capacity of cache in bytes. */
     size_t  used;       /* Current usage of cache in bytes. */
 } lcache_t;

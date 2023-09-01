@@ -39,8 +39,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#define N_HT_LOCKS 16
-#define PORT_DEFAULT 8080
+#define N_HT_LOCKS (16)
+#define PORT_DEFAULT (8080)
 #define MAX_QUEUE_REQUESTS 64
 
 #define MIN(a, b) (a) > (b) ? (a) : (b)
@@ -189,8 +189,9 @@ cache_local_contains(lcache_t *lc, char *path)
     return (loc != NULL);
 }
 
-/* Caches SIZE bytes of DATA using PATH as the key. Returns 0 on success, and
-   a negative errno value on failure. */
+/* Caches SIZE bytes of DATA using PATH as the key. Copies DATA into a newly
+   allocated shm object. Returns 0 on success, and a negative errno value on
+   failure. */
 int
 cache_local_store(lcache_t *lc, char *path, uint8_t *data, size_t size)
 {
@@ -289,6 +290,7 @@ cache_remote_load(rcache_t *rc, request_t *request)
 /*   MANAGER (manager scope)   */
 /* --------------------------- */
 
+/* Submit an IO request to io_uring. Returns 0 on success, -errno on failure. */
 int
 manager_submit_io(ustate_t *ustate, request_t *r)
 {
@@ -402,9 +404,34 @@ manager_check_done(cache_t *c, ustate_t *ustate)
         request_t *request = io_uring_cqe_get_data(cqe);
         io_uring_cqe_seen(&ustate->ring, cqe);
 
-        /* TODO: check if there's more that needs to be done before moving to the 
-           done queue. */
+        /* Try to cache this file. */
+        if (c->lcache.used + request->size <= c->lcache.capacity) {
+            lloc_t *loc = malloc(sizeof(lloc_t));
+            if (loc == NULL) {
+                DEBUG_LOG("malloc fail\n");
+                goto skip_cache;
+            }
 
+            /* Prepare the location record and append it to the list of unsynced
+               filepaths for this epoch. */
+            *loc = (lloc_t) {
+                .data = request->_ldata,
+                .shm_fd = request->_lfd_shm,
+                .size = request->size,
+            };
+            strncpy(loc->path, request->path, MAX_PATH_LEN);
+            strncpy(loc->shm_path, request->shm_path, MAX_SHM_PATH_LEN);
+
+            /* Add to the hash table indexed by PATH. */
+            HASH_ADD_STR(c->lcache.ht, path, loc);
+            c->lcache.used += loc->size;
+            request->_skip_clean = true;
+
+            /* Add to list of filenames to be synchronized. */
+            QUEUE_PUSH(c->lcache.unsynced, next, prev, loc);
+        }
+
+       skip_cache:
         QUEUE_PUSH_SAFE(ustate->done, &ustate->done_lock, next, prev, request);
     }
 }
@@ -496,6 +523,7 @@ cache_destroy(cache_t *c)
         return;
     }
 
+    /* Free all of the user states. */
     if (c->ustates != NULL) {
         /* Free the queues. */
         for (int i = 0; i < c->n_users; i++) {
@@ -546,8 +574,7 @@ cache_init(cache_t *c, size_t capacity, unsigned queue_depth, int n_users)
 
         /* The other queues start empty. */
         ustate->ready = NULL;
-        ustate->storage_inflight = NULL;
-        ustate->network_inflight = NULL;
+        ustate->network = NULL;
         ustate->done = NULL;
 
         /* Initialize the io_uring queues. */
@@ -566,12 +593,13 @@ cache_init(cache_t *c, size_t capacity, unsigned queue_depth, int n_users)
 
     /* Set up the local cache. */
     c->lcache.ht = NULL;
+    c->lcache.unsynced = NULL;
     c->lcache.capacity = capacity;
     c->lcache.used = 0;
 
     /* Set up the remote cache. */
     c->rcache.ht = NULL;
-
+    
     /* Set up the total cache. */
     c->n_users = n_users;
     c->qdepth = queue_depth;
