@@ -28,8 +28,9 @@
 #ifndef __CACHE_H__
 #define __CACHE_H__
 
-#define MAX_PATH_LEN (128)
-#define MAX_NAME_LEN (128)
+#define MAX_PATH_LEN (128)                      /* Not including \0. */
+#define MAX_SHM_PATH_LEN (MAX_PATH_LEN + 1)     /* Not including \0. */
+#define MAX_NAME_LEN (128)                      /* Not including \0. */
 
 /* File load request (queue entry). Shared memory accessible by both API users
    and the ladcache loader process. */
@@ -37,7 +38,7 @@ typedef struct file_request {
     /* File metadata. */
     size_t  size;                           /* Size of file data in bytes. */
     char    path[MAX_PATH_LEN + 1];         /* Path to file. */
-    char    shm_path[MAX_PATH_LEN + 2];     /* PATH, but for shm object, and
+    char    shm_path[MAX_SHM_PATH_LEN + 1]; /* PATH, but for shm object, and
                                                conforming to shm name rules. */
 
     /* Loader state. */
@@ -58,6 +59,7 @@ typedef struct file_request {
 
 /* File data location for the local cache. */
 typedef struct local_location {
+    char    path[MAX_PATH_LEN + 1];         /* Index in hash table. */
     char    shm_path[MAX_PATH_LEN + 2];     /* Path to the shm object. */
     int     shm_fd;                         /* FD for shm object. */
     void   *data;                           /* Pointer to shm obj's memory. */

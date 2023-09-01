@@ -31,7 +31,13 @@
 #include <errno.h>
 #include <assert.h>
 #include <sys/socket.h>
+#include <sys/shm.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
 #include <netinet/in.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
 
 #define N_HT_LOCKS 16
 #define PORT_DEFAULT 8080
@@ -59,15 +65,21 @@ shmify(char *in, char *out, size_t in_length, size_t out_length)
     }
 }
 
-/* ----------- */
-/*   NETWORK   */
-/* ----------- */
+/* --------------------------- */
+/*   NETWORK (manager scope)   */
+/* --------------------------- */
 
 /* Announce our existence to other members of the distributed cache. */
 int
 cache_register(cache_t *c)
 {
     /* TODO. */
+}
+
+int
+cache_sync_ownership()
+{
+    /* TODO. Announce */
 }
 
 /* Handles a remote read request. */
@@ -93,6 +105,7 @@ monitor_loop(cache_t *c)
     /* Allow address to be re-used. */
     int opt = 1;
     if (setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) { /* Needed? */
+        DEBUG_LOG("setsockopt failed\n");
         return -errno;
     }
 
@@ -103,14 +116,17 @@ monitor_loop(cache_t *c)
     addr.sin_addr.s_addr = INADDR_ANY;
     addr.sin_port = htons(PORT_DEFAULT);
     if (bind(lfd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        DEBUG_LOG("bind failed\n");
         return -errno;
     }
 
     /* Start listening. */
     if (listen(lfd, MAX_QUEUE_REQUESTS)) {
+        DEBUG_LOG("listen failed\n");
         return -errno;
     }
 
+    /* Handle all incoming connections. */
     while (true) {
         int cfd = accept(lfd, (struct sockaddr *) &addr, (socklen_t *) &len);
         if (cfd >= 0) {
@@ -132,15 +148,18 @@ monitor_spawn(cache_t *c)
 }
 
 
-/* ------------------------- */
-/*   LOCAL CACHE INTERFACE   */
-/* ------------------------- */
+/* ----------------------------------------- */
+/*   LOCAL CACHE INTERFACE (manager scope)   */
+/* ----------------------------------------- */
 
 /* Checks the local cache for PATH. Returns TRUE if contained, FALSE if not. */
 bool
 cache_local_contains(lcache_t *lc, char *path)
 {
-    /* TODO. */
+    lloc_t *loc = NULL;
+    HASH_FIND_STR(lc->ht, path, loc);
+
+    return (loc != NULL);
 }
 
 /* Caches SIZE bytes of DATA using PATH as the key. Returns 0 on success, and
@@ -148,7 +167,56 @@ cache_local_contains(lcache_t *lc, char *path)
 int
 cache_local_store(lcache_t *lc, char *path, uint8_t *data, size_t size)
 {
-    /* TODO. */
+    /* Verify we can fit this in the cache. */
+    if (lc->used + size > lc->capacity) {
+        DEBUG_LOG("item of %lu bytes too big to fit in local cache.\n", size);
+        return -E2BIG;
+    }
+
+    /* Get a new location record. */
+    lloc_t *loc = malloc(sizeof(lloc_t));
+    if (loc == NULL) {
+        DEBUG_LOG("malloc failed\n");
+        return -ENOMEM;
+    }
+
+    /* Create the shm object. */
+    shmify(path, loc->shm_path, MAX_PATH_LEN + 1, MAX_SHM_PATH_LEN + 1);
+    loc->shm_fd = shm_open(loc->shm_path, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    if (loc->shm_fd < 0) {
+        DEBUG_LOG("shm_open failed\n");
+        return -errno;
+    }
+
+    /* Size the shm object. */
+    loc->size = size;
+    if (ftruncate(loc->shm_fd, size) < 0) {
+        DEBUG_LOG("ftruncate failed\n");
+        shm_unlink(loc->shm_fd);
+        close(loc->shm_fd);
+        return -errno;
+    }
+
+    /* Create the mmap. */
+    loc->data = mmap(NULL, size, PROT_WRITE, MAP_SHARED, loc->shm_fd, 0);
+    if (loc->data == NULL) {
+        DEBUG_LOG("mmap failed\n");
+        shm_unlink(loc->shm_path);
+        close(loc->shm_fd);
+        return -ENOMEM;
+    }
+
+    /* Page-lock the memory. */
+    mlock(loc->data, size);
+
+    /* Copy data to cache. */
+    memcpy(loc->data, data, size);
+
+    /* Insert into hash table. */
+    strncpy(loc->path, path, MAX_PATH_LEN);
+    HASH_ADD_STR(lc->ht, path, loc);
+
+    return 0;
 }
 
 int
@@ -158,9 +226,9 @@ cache_local_load(lcache_t *lc, request_t *request)
 }
 
 
-/* -------------------------- */
-/*   REMOTE CACHE INTERFACE   */
-/* -------------------------- */
+/* ------------------------------------------ */
+/*   REMOTE CACHE INTERFACE (Manager scope)   */
+/* ------------------------------------------ */
 
 /* Checks the remote cache for PATH. Returns TRUE if contained, FALSE if not. */
 bool
@@ -176,9 +244,9 @@ cache_remote_load(rcache_t *rc, request_t *request)
 }
 
 
-/* ----------- */
-/*   MANAGER   */
-/* ----------- */
+/* --------------------------- */
+/*   MANAGER (manager scope)   */
+/* --------------------------- */
 
 /* Check whether USTATE has a pending request, and execute it if it does.
    Returns 0 on sucess, -errno on failure. */
@@ -198,6 +266,7 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
         int status = cache_local_load(&c->lcache, pending);
         if (status < 0) {
             /* ISSUE: we leak a request struct here. */
+            DEBUG_LOG("cache_local_load failed\n");
             return status;
         }
 
@@ -209,6 +278,7 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
         int status = cache_remote_load(&c->rcache, pending);
         if (status < 0) {
             /* ISSUE: we leak a request struct here. */
+            DEBUG_LOG("cache_remote_load failed\n");
             return status;
         }
 
@@ -268,11 +338,12 @@ cache_get_submit(ustate_t *user, char *path)
     request_t *request = NULL;
     QUEUE_POP_SAFE(&user->free, &user->free_lock, next, prev, request);
     if (request == NULL) {
+        DEBUG_LOG("&user->free is empty\n");
         return -EAGAIN; /* Try again once completed requests have been freed. */
     }
     memset(request, 0, sizeof(request_t));
     strncpy(request->path, path, MAX_PATH_LEN);
-    shmify(request->path, request->shm_path, MAX_PATH_LEN + 1, MAX_PATH_LEN + 2);
+    shmify(request->path, request->shm_path, MAX_PATH_LEN + 1, MAX_SHM_PATH_LEN + 1);
 
     /* Submit request to the monitor. */
     QUEUE_PUSH_SAFE(&user->ready, &user->read_lock, next, prev, request);
@@ -289,6 +360,7 @@ cache_get_reap(ustate_t *user, request_t *out)
     out = NULL;
     QUEUE_POP_SAFE(&user->done, &user->done_lock, next, prev, out);
     if (out == NULL) {
+        DEBUG_LOG("&user->done is empty\n");
         return -EAGAIN; /* Try again once request has been fulfilled. */
     }
 
@@ -296,9 +368,9 @@ cache_get_reap(ustate_t *user, request_t *out)
 }
 
 
-/* -------------- */
-/*   ALLOCATION   */
-/* -------------- */
+/* --------------------------- */
+/*   ALLOCATION (user scope)   */
+/* --------------------------- */
 
 /* Get a cache_t struct using shared memory. Returns NULL on failure. */
 cache_t *
@@ -336,6 +408,7 @@ cache_init(cache_t *c, size_t capacity, int queue_depth, int n_users)
 {
     /* Allocate user states. */
     if ((c->ustates = mmap_alloc(n_users * sizeof(ustate_t))) == NULL) {
+        DEBUG_LOG("mmap_alloc failed\n");
         return -ENOMEM;
     }
 
@@ -346,6 +419,7 @@ cache_init(cache_t *c, size_t capacity, int queue_depth, int n_users)
         /* Allocate requests (queue entries). */
         if ((ustate->free = mmap_alloc(queue_depth * sizeof(request_t))) == NULL) {
             cache_destroy(c);
+            DEBUG_LOG("mmap_alloc failed\n");
             return -ENOMEM;
         }
         ustate->head = ustate->free;
