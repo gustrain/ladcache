@@ -23,6 +23,7 @@
 
 #include <stdint.h>
 #include <pthread.h>
+#include <liburing.h>
 #include "../utils/uthash.h"
 
 #ifndef __CACHE_H__
@@ -44,6 +45,7 @@ typedef struct file_request {
     /* Loader state. */
     void *_ldata;       /* Loader's pointer to the shm object's memory. */
     int   _lfd_shm;     /* Loader's FD for the shm object. */
+    int   _lfd_file;    /* Loader's FD for the file being loaded. */
 
     /* User state. */
     void *udata;        /* User's pointer to the shm object's memory. */
@@ -100,9 +102,11 @@ typedef struct {
     request_t *head;                /* Only used for teardown. */
     request_t *free;                /* Unused request_t structs. */
     request_t *ready;               /* Ready requests waiting to be executed. */
-    request_t *storage_inflight;    /* Requests being served by storage. */
-    request_t *network_inflight;    /* Requests being served by network. */
+    request_t *network;             /* Requests being served by network. */
     request_t *done;                /* Fulfilled requests. */
+
+    /* Asynchronous IO. */
+    struct io_uring ring;
 
     /* Synchronization. */
     pthread_spinlock_t free_lock;

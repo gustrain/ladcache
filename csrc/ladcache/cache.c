@@ -65,6 +65,33 @@ shmify(char *in, char *out, size_t in_length, size_t out_length)
     }
 }
 
+/* On success, returns the size of a file in bytes. On failure, returns -errno
+   value. */
+static off_t
+file_get_size(int fd)
+{
+    struct stat st;
+    if (fstat(fd, &st) < 0) {
+        return -errno;
+    }
+
+    /* Check device type. */
+    if (S_ISBLK(st.st_mode)) {
+        /* Block device. */
+        uint64_t bytes;
+        if (ioctl(fd, BLKGETSIZE64, &bytes) != 0) {
+            return -errno;
+        }
+        
+        return bytes;
+    } else if (S_ISREG(st.st_mode)) {
+        return st.st_size;
+    }
+    
+    /* Unknown device type. */
+    return -ENODEV;
+}
+
 /* --------------------------- */
 /*   NETWORK (manager scope)   */
 /* --------------------------- */
@@ -262,6 +289,59 @@ cache_remote_load(rcache_t *rc, request_t *request)
 /*   MANAGER (manager scope)   */
 /* --------------------------- */
 
+int
+manager_submit_io(ustate_t *ustate, request_t *r)
+{
+    /* Open the file. */
+    r->_lfd_file = open(r->path, O_RDONLY | __O_DIRECT);
+    if (r->_lfd_file < 0) {
+        DEBUG_LOG("open failed; %s\n", r->path);
+        return -ENOENT;
+    }
+
+    /* Get the size of the file, rounding the size up to the nearest multiple of
+       4KB for O_DIRECT compatibility. */
+    off_t size = file_get_size(r->_lfd_file);
+    if (size < 0) {
+        DEBUG_LOG("file_get_size failed\n");
+        return (int) size;
+    }
+    r->size = (((size_t) size) | 0xFFF) + 1;
+
+    /* Create buffer using shm. */
+    r->_lfd_shm = shm_open(r->shm_path, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    if (r->_lfd_shm < 0) {
+        DEBUG_LOG("shm_open failed; %s\n", r->shm_path);
+        return -errno;
+    }
+
+    /* Size buffer to fit file data. */
+    if (ftruncate(r->_lfd_shm, r->size) < 0) {
+        DEBUG_LOG("ftruncate failed\n");
+        shm_unlink(r->shm_path);
+        close(r->_lfd_shm);
+        close(r->_lfd_file);
+        return -errno;
+    }
+
+    /* Create mmap for the shm object. */
+    r->_ldata = mmap(NULL, r->size, PROT_WRITE, MAP_SHARED, r->_lfd_shm, 0);
+    if (r->_ldata == NULL) {
+        DEBUG_LOG("mmap failed\n");
+        shm_unlink(r->shm_path);
+        close(r->_lfd_shm);
+        close(r->_lfd_file);
+        return -ENOMEM;
+    }
+
+    /* Tell io_uring to read the file into the buffer. */
+    struct io_uring_sqe *sqe = io_uring_get_sqe(&ustate->ring);
+    io_uring_prep_read(sqe, r->_lfd_file, r->_ldata, r->size, 0);
+    io_uring_sqe_set_data(sqe, r);
+
+    return 0;
+}
+
 /* Check whether USTATE has a pending request, and execute it if it does.
    Returns 0 on sucess, -errno on failure. */
 int
@@ -300,10 +380,13 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
     }
 
     /* If not cached, issue IO. */
+    int status = manager_submit_io(ustate, pending);
+    if (status < 0) {
+        DEBUG_LOG("manager_submit_io failed\n");
+        return status;
+    }
 
-    /* TODO. */
-
-    QUEUE_PUSH(&ustate->storage_inflight, next, prev, pending);
+    return 0;
 }
 
 /* Check if any storage requests have completed their IO. Note that the network
@@ -312,7 +395,18 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
 int
 manager_check_done(cache_t *c, ustate_t *ustate)
 {
-    /* TODO. */
+    /* Drain the io_uring completion queue into our completion queue. Using
+       peek (instead of wait) to ensure the check is non-blocking. */
+    struct io_uring_cqe *cqe;
+    while (!io_uring_peek_cqe(&ustate->ring, &cqe)) {
+        request_t *request = io_uring_cqe_get_data(cqe);
+        io_uring_cqe_seen(&ustate->ring, cqe);
+
+        /* TODO: check if there's more that needs to be done before moving to the 
+           done queue. */
+
+        QUEUE_PUSH_SAFE(ustate->done, &ustate->done_lock, next, prev, request);
+    }
 }
 
 /* Manager main loop. Handles all pending requests. */
@@ -414,11 +508,13 @@ cache_destroy(cache_t *c)
 
     /* Destroy the cache struct itself. */
     mmap_free(c, sizeof(cache_t));
+
+    /* TODO: are we missing any io_uring stuff? */
 }
 
 /* Allocate a complete cache. Returns 0 on success and -errno on failure. */
 int
-cache_init(cache_t *c, size_t capacity, int queue_depth, int n_users)
+cache_init(cache_t *c, size_t capacity, unsigned queue_depth, int n_users)
 {
     /* Allocate user states. */
     if ((c->ustates = mmap_alloc(n_users * sizeof(ustate_t))) == NULL) {
@@ -447,13 +543,20 @@ cache_init(cache_t *c, size_t capacity, int queue_depth, int n_users)
         /* Ensure the list is NULL terminated. */
         ustate->free[0].prev = NULL;
         ustate->free[queue_depth - 1].next = NULL;
-        
 
         /* The other queues start empty. */
         ustate->ready = NULL;
         ustate->storage_inflight = NULL;
         ustate->network_inflight = NULL;
         ustate->done = NULL;
+
+        /* Initialize the io_uring queues. */
+        int status = io_uring_queue_init(queue_depth, &ustate->ring, 0);
+        if (status < 0) {
+            DEBUG_LOG("io_uring_queue_init failed\n");
+            cache_destroy(c);
+            return status;
+        }
 
         /* Initialize the locks. */
         pthread_spinlock_init(&ustate->free_lock, PTHREAD_PROCESS_SHARED);
