@@ -119,20 +119,9 @@ typedef struct {
     uint8_t data[];
 } message_t;
 
-/* Peer record. Hash table entry for peer IP -> socket. All records will be 
-   shared by the network manager process, and used by the manager's threads. */
-typedef struct {
-    int sfd;                    /* Socket fd for this peer. */
-    pthread_spinlock_t *lock;   /* Protects SFD from concurrent usage. */
-
-    /* Hash table. */
-    UT_hash_handle hh;
-} peer_t;
-
 /* File data location for a remote cache. */
 typedef struct remote_location {
     uint32_t  ip;       /* IP of file owner. */
-    peer_t   *owner;    /* Peer state for owner. Also accessible through HT. */
     uint16_t  port;     /* Port of file owner. */
     size_t    size;     /* Size of file in bytes. */
 
@@ -144,18 +133,14 @@ typedef struct remote_location {
 typedef struct {
     rloc_t             *ht;             /* Filepath -> rloc_t hash table. */
     pthread_spinlock_t  ht_lock;        /* Protects HT. */
-
-    peer_t             *peers;          /* Hash table of peer IP -> socket. */
-    pthread_spinlock_t  peers_lock;     /* Protects PEERS. */
 } rcache_t;
 
 /* User states. Private between users, shared with loader. */
 typedef struct {
-    /* Status queues and hash tables. */
+    /* Status queues. */
     request_t *head;                /* Only used for teardown. */
     request_t *free;                /* Unused request_t structs. */
     request_t *ready;               /* Ready requests waiting to be executed. */
-    request_t *network;             /* Requests being served by network (HT). */
     request_t *done;                /* Fulfilled requests. */
 
     /* Asynchronous IO. */
@@ -166,16 +151,6 @@ typedef struct {
     pthread_spinlock_t ready_lock;
     pthread_spinlock_t done_lock;
 } ustate_t;
-
-/* Peer record. Hash table entry for peer IP -> socket. All records will be 
-   shared by the network manager process, and used by the manager's threads. */
-typedef struct {
-    int sfd;                    /* Socket fd for this peer. */
-    pthread_spinlock_t *lock;   /* Protects SFD from concurrent usage. */
-
-    /* Hash table. */
-    UT_hash_handle hh;
-} peer_t;
 
 /* Complete/total cache state. */
 typedef struct {

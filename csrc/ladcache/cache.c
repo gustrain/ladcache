@@ -100,6 +100,7 @@ file_get_size(int fd)
 int
 cache_register(cache_t *c)
 {
+
     /* TODO. */
 }
 
@@ -282,19 +283,37 @@ cache_remote_contains(rcache_t *rc, char *path)
     return (loc != NULL);
 }
 
-/* Send a request to a peer for a file to be transfered. Will fail quickly if
-   the remote cache cannot serve this request. Assumes that the caller has
-   already removed REQUEST from USER's ready queue. Inserts request into USER's
-   hash table for pending network requests. */
-int
-cache_remote_request(rcache_t *rc, ustate_t *user, request_t *request)
+/* Arguments to cache_remote_load. */
+typedef struct cache_remote_load_args {
+    rcache_t *rc;
+    ustate_t *user;
+    request_t *request;
+};
+
+/* Thread target to request a file from a peer. Should be passed a malloc'd
+   cache_remote_load_args struct, which will be freed once arguments haev been
+   parsed. Assumes that the caller has already removed REQUEST from USER's ready
+   queue. The completed request will be placed into USER's done queue. */
+void
+cache_remote_load(void *args)
 {
-    /* Who owns the data? */
+    /* Get the arguments passed to us. */
+    rcache_t *rc = ((struct cache_remote_load_args *) args)->rc;
+    ustate_t *user = ((struct cache_remote_load_args *) args)->user;
+    request_t *request = ((struct cache_remote_load_args *) args)->request;
+    free(args);
+
+    /* Find who to request the file from. */
     rloc_t *loc = NULL;
     HASH_FIND_STR(rc->ht, request->path, loc);
     if (loc == NULL) {
         return -ENODATA;
     }
+    struct sockaddr_in peer_addr = {
+        .sin_addr = loc->ip,
+        .sin_family = AF_INET,
+        .sin_port = loc->port
+    };
 
     /* Construct transfer request message according to cache.h specification. */
     int path_len = strlen(request->path);
@@ -303,17 +322,22 @@ cache_remote_request(rcache_t *rc, ustate_t *user, request_t *request)
     if (message == NULL) {
         return -ENOMEM;
     }
-    message->header = TYPE_RQST;                        /* Header. */
-    *((int *) &message->data[0]) = path_len;            /* Path length. */
-    memcpy(&message->data[4], request->path, path_len); /* Path. */
+    message->header = TYPE_RQST;                                /* Header. */
+    memcpy(&message->data[0], (void *) path_len, sizeof(int));  /* Length. */
+    memcpy(&message->data[4], request->path, path_len);         /* Path. */
 
-    /* Tell the manager to expect this file to be transferred. */
-    HASH_ADD_STR(user->network, path, request);
+    /* Connect to the peer's manager socket. */
+    int peer_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (peer_fd < 0) {
+        return -errno;
+    }
+    if (connect(peer_fd, &peer_addr, sizeof(peer_addr)) < 0) {
+        close(peer_fd);
+        return -errno;
+    }
 
-    /* Send the message. */
-    pthread_spin_lock(&loc->owner->lock);
-    assert(send(loc->owner->sfd, (void *) message, message_len, 0) == message_len);
-    pthread_spin_unlock(&loc->owner->lock);
+    /* Send our request. */
+    assert(send(peer_fd, (void *) message, message_len, 0) == message_len);
 
     return 0;
 }
@@ -404,12 +428,21 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
 
     /* Check the remote cache. */
     if (cache_remote_contains(&c->rcache, pending->path)) {
-        int status = cache_remote_request(&c->rcache, ustate, pending);
-        if (status < 0) {
-            /* ISSUE: we leak a request struct here. */
-            DEBUG_LOG("cache_remote_request failed\n");
-            return status;
+        /* Prepare arguments for cache_remote_load. */
+        struct cache_remote_load_args *args = malloc(sizeof(struct cache_remote_load_args));
+        if (args == NULL) {
+            return -ENOMEM;
         }
+        args->rc = &c->rcache;
+        args->request = pending;
+        args->user = ustate;
+
+        /* Spawn a thread to handling requesting the file from the peer. It will
+           take care of itself and doesn't require management. */
+        pthread_t _;
+        assert(!pthread_create(&_, NULL, cache_remote_load, (void *) args));
+
+        return 0;
     }
 
     /* If not cached, issue IO. */
@@ -602,9 +635,8 @@ cache_init(cache_t *c, size_t capacity, unsigned queue_depth, int n_users)
         ustate->free[0].prev = NULL;
         ustate->free[queue_depth - 1].next = NULL;
 
-        /* The other queues and hash tables start empty. */
+        /* The other queues start empty. */
         ustate->ready = NULL;
-        ustate->network = NULL; /* Hash table. */
         ustate->done = NULL;
 
         /* Initialize the io_uring queues. */
@@ -629,9 +661,7 @@ cache_init(cache_t *c, size_t capacity, unsigned queue_depth, int n_users)
 
     /* Set up the remote cache. */
     c->rcache.ht = NULL;
-    c->rcache.peers = NULL;
     assert(!pthread_spinlock_init(&c->rcache.ht_lock));
-    assert(!pthread_spinlock_init(&c->rcache.peers_lock));
 
     /* Set up the total cache. */
     c->n_users = n_users;
