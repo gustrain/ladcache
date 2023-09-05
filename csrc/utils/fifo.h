@@ -25,18 +25,33 @@
       - head: head of queue struct.
       - next: name of "next" field.
       - prev: name of "prev" field.
-      - elem: queue struct pointer, pointed to popped elem.
+      - out: queue struct pointer, pointed to popped elem.
  */
-#define QUEUE_POP(head, next, prev, elem) /* TODO. */
+#define QUEUE_POP(head, next, prev, out)                                      \
+      do {                                                                    \
+            if (head == NULL) {                                               \
+                  continue;                                                   \
+            }                                                                 \
+            out = head;                                                       \
+            head = head->next;                                                \
+            if (head != NULL) {                                               \
+                  head->prev = NULL;                                          \
+            }                                                                 \
+      } while (0)
 
 /* General-purpose pop method that acquires a spinlock while working.
       - head: head of queue struct.
       - lock: name of "lock" field.
       - next: name of "next" field.
       - prev: name of "prev" field.
-      - elem: queue struct pointer, pointed to popped elem.
+      - out: queue struct pointer, pointed to popped elem.
  */
-#define QUEUE_POP_SAFE(head, lock, next, prev, elem) /* TODO. */
+#define QUEUE_POP_SAFE(head, lock, next, prev, out)                           \
+      do {                                                                    \
+            pthread_spin_lock(lock);                                          \
+            QUEUE_POP(head, next, prev, out);                                 \
+            pthread_spin_unlock(lock);                                        \
+      } while (0)
 
 /* General-purpose push method.
       - head: head of queue struct.
@@ -45,6 +60,18 @@
       - elem: pointer to queue struct to insert.
  */
 #define QUEUE_PUSH(head, next, prev, elem) /* TODO. */
+      do {                                                                    \
+            if (head == NULL) {                                               \
+                  head = elem;                                                \
+                  elem->prev = NULL;                                          \
+                  elem->next = NULL;                                          \
+                  continue;                                                   \
+            }                                                                 \
+            head->prev = elem;                                                \
+            elem->next = head->next;                                          \
+            elem->prev = NULL;                                                \
+            head = elem;                                                      \
+      } while (0)
 
 /* General-purpose push method that acquires a spinlock while working.
       - head: head of queue struct.
@@ -54,4 +81,9 @@
       - elem: pointer to queue struct to insert.
 
  */
-#define QUEUE_PUSH_SAFE(head, lock, next, prev, elem) /* TODO. */
+#define QUEUE_PUSH_SAFE(head, lock, next, prev, elem)                         \
+      do {                                                                    \
+            pthread_spin_lock(lock);                                          \
+            QUEUE_PUSH(head, next, prev, elem);                               \
+            pthread_spin_unlock(lock)
+      } while (0)
