@@ -104,18 +104,58 @@ cache_register(cache_t *c)
     /* TODO. */
 }
 
+/* TODO. Broadcast a SYNC message to update remote cache directories. */
 int
 cache_sync_ownership()
 {
     /* TODO. Announce */
 }
 
+/* TODO. Handle a file request by sending the requested file data. */
+int
+monitor_handle_request(message_t *message)
+{
+    /* Prepare and send message. Can do header separately. */
+}
+
 /* Handles a remote read request. */
 void
 monitor_handle_connection(void *arg)
 {
+    ssize_t bytes;
     int client_fd = (int) arg;
-    /* TODO. */
+
+    /* Get the request header. */
+    message_t *message = malloc(sizeof(message_t));
+    if ((bytes = read(client_fd, (void *) message, sizeof(message_t))) != sizeof(message_t)) {
+        DEBUG_LOG("Received a message that was too short (%ld bytes).\n", bytes);
+        close(client_fd);
+        return;
+    }
+
+    /* Sanity check. */
+    if (message->header.magic != HEADER_MAGIC) {
+        DEBUG_LOG("Received message with invalid header magic (0x%hx, should be 0x%hx).\n", message->header.magic, HEADER_MAGIC);
+        close(client_fd);
+        return;
+    }
+    uint32_t len = message->header.length;
+
+    /* Allocate space for the rest of the message. */
+    if (realloc(message, len) == NULL) {
+        DEBUG_LOG("Unable to allocate an additional %ld bytes for full message.\n", len);
+        close(client_fd);
+        return;
+    }
+
+    /* Read the rest of the message. */
+    if ((bytes = read(client_fd, (void *) message->data, len)) != len) {
+        DEBUG_LOG("Expected %u bytes but got %ld.\n", len, bytes);
+        close(client_fd);
+        return;
+    }
+
+    /* TODO. Check if we have the file data and respond to them with it. */
 }
 
 /* Monitor main loop. Handles all incoming remote read requests. Should never
@@ -158,8 +198,10 @@ monitor_loop(cache_t *c)
     while (true) {
         int cfd = accept(lfd, (struct sockaddr *) &addr, (socklen_t *) &len);
         if (cfd >= 0) {
-            pthread_t tid; /* This thread will terminate gracefully on its own and we don't need to track it. */
-            pthread_create(&tid, NULL, &monitor_handle_connection, (void *) cfd);
+            /* This thread will terminate gracefully on its own and we don't
+               need to track it. */
+            pthread_t _;
+            pthread_create(&_, NULL, &monitor_handle_connection, (void *) cfd);
         }
     }
 
@@ -307,6 +349,7 @@ cache_remote_load(void *args)
     rloc_t *loc = NULL;
     HASH_FIND_STR(rc->ht, request->path, loc);
     if (loc == NULL) {
+        /* ISSUE: leaking this request. */
         return -ENODATA;
     }
     struct sockaddr_in peer_addr = {
@@ -316,28 +359,66 @@ cache_remote_load(void *args)
     };
 
     /* Construct transfer request message according to cache.h specification. */
-    int path_len = strlen(request->path);
-    int message_len = sizeof(message_t) + sizeof(int) + path_len;
-    message_t *message = malloc(message_len);
+    uint32_t path_len = strlen(request->path);
+    uint32_t message_len = sizeof(uint32_t) + path_len;
+    ssize_t  total_len = sizeof(message_t) + message_len;
+    message_t *message = (message_t *) calloc(1, total_len);
     if (message == NULL) {
         return -ENOMEM;
     }
-    message->header = TYPE_RQST;                                /* Header. */
-    memcpy(&message->data[0], (void *) path_len, sizeof(int));  /* Length. */
-    memcpy(&message->data[4], request->path, path_len);         /* Path. */
+    message->header.type = TYPE_RQST;
+    message->header.magic = HEADER_MAGIC;
+    message->header.length = message_len;
+    memcpy(&message->data[0], (void *) path_len, sizeof(uint32_t));
+    memcpy(&message->data[4], request->path, path_len + 1); /* +1 for 0 byte. */
 
     /* Connect to the peer's manager socket. */
     int peer_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (peer_fd < 0) {
+        /* ISSUE: leaking this request. */
         return -errno;
     }
     if (connect(peer_fd, &peer_addr, sizeof(peer_addr)) < 0) {
+        /* ISSUE: leaking this request. */
         close(peer_fd);
         return -errno;
     }
 
     /* Send our request. */
-    assert(send(peer_fd, (void *) message, message_len, 0) == message_len);
+    int bytes = send(peer_fd, (void *) message, message_len, 0);
+    if (bytes != total_len) {
+        /* ISSUE: leaking this request. */
+        DEBUG_LOG("Failed to send entire message (sent %ld/%ld bytes).\n", bytes, total_len);
+        close(peer_fd);
+        return;
+    }
+
+    /* Await the header of a response. */
+    if (read(peer_fd, (void *) message, sizeof(message_t)) != sizeof(message_t)) {
+        DEBUG_LOG("Received an invalid response (short header).\n");
+        close(peer_fd);
+        return;
+    }
+
+    /* Check the magic and the header type for validity. */
+    if (message->header.magic != HEADER_MAGIC || message->header.type != TYPE_RSPN) {
+        DEBUG_LOG("Received an invalid header (magic = 0x%hx, type = 0x%hx)", message->header.magic, message->header.type);
+        close(peer_fd);
+        return;
+    }
+    uint32_t len = message->header.length;
+
+    /* TODO. Allocate an shm object for the file. */
+    void *ptr = NULL;
+
+    /* If everything is valid then we can read the file data. */
+    if ((bytes = read(peer_fd, ptr, len)) != len) {
+        DEBUG_LOG("Received insufficient file data (%ld/%u bytes).\n", bytes, len);
+        close(peer_fd);
+        return;
+    }
+
+    /* TODO. Configure the response and push into the done queue. */
 
     return 0;
 }

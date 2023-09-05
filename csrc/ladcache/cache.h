@@ -34,9 +34,10 @@
 #define MAX_NAME_LEN (128)                      /* Not including \0. */
 #define MAX_SYNC_SIZE (16 * 1024 * (MAX_PATH_LEN + 1))
 
-#define N_HEADER_BYTES (1)
+#define HEADER_MAGIC (0xADDA)
 
-#define TYPE_SYNC (0b0001) /* File ownership synchronization. */
+#define TYPE_SYNC (0b0010) /* File ownership synchronization. */
+#define TYPE_RSPN (0b0001) /* File transfer response. */
 #define TYPE_RQST (0b0000) /* File transfer request. */
 
 #define FLAG_NONE (0b00000000)
@@ -98,24 +99,43 @@ typedef struct {
 
 /* General purpose network message struct. Messages follow the format below.
 
-            ┌────────┬─────────┬───────────┬──────────┬───┬───────────┬──────────┐
-    Sync    │header  │# entries│path length│filepath  │   │path length│filepath  │
-    Message │0000xxxx│4 bytes  │4 bytes    │var. bytes│...│4 bytes    │var. bytes│
-    (0001)  └────────┴─────────┴───────────┴──────────┴───┴───────────┴──────────┘
-            ┌────────┬───────────┬──────────┐
-    File    │header  │path length│filepath  │
-    Request │0000xxxx│4 bytes    │var. bytes│
-    (0000)  └┬───────┴───────────┴──────────┘
-             │
-             │ ┌──────┬──┬──┬──┬──┐
-             └►│type  │CR│FL│FL│FL│
-               │4 bits│CT│AG│AG│AG│
-               └──────┴──┴──┴──┴──┘
-                        BIT FLAGS
+        Sync     ┌────────┬─────────┬────────┬────────┬───┬────────┐
+        Message  │header  │# entries│filepath│filepath│   │filepath│
+        (0010)   │7 bytes │4 bytes  │n bytes │n bytes │...│n bytes │
+        ──────►  └────────┴─────────┴────────┴────────┴───┴────────┘
 
-*/
+        File     ┌────────┬─────────┐
+        Response │header  │file data│
+        (0001)   │7 bytes │n bytes  │
+        ──────►  └────────┴─────────┘
+
+        File     ┌────────┬────────┐
+        Request  │header  │filepath│
+        (0000)   │7 bytes │n bytes │
+        ──────►  └────────┴────────┘
+
+                        ┌───────┬──────┬──┬──┬──┬──┬───────┐
+                header  │0xADDA │type  │CR│UN│FL│FL│length │
+                format  │2 bytes│4 bits│CT│BL│G2│G3│4 bytes│
+                        └───────┴──────┴──┴──┴──┴──┴───────┘
+                                BIT FLAGS
+    
+    The first 2 bytes of the header are just an arbitrary magic value. The
+    header's length field specifies the number of bytes to follow the header in
+    the message. */
 typedef struct {
-    uint8_t header;
+    union {
+        uint8_t raw[7];
+        struct {
+            uint16_t magic;     /* Magic value (HEADER_MAGIC). */
+            uint8_t  type : 4;  /* Message type. */
+            bool     crct : 1;  /* Corrective message flag. */
+            bool     unbl : 1;  /* Unable flag (i.e., could not fulfill). */
+            bool     flg2 : 1;  /* Unused. Flag 2. */
+            bool     flg3 : 1;  /* Unused. Flag 3. */
+            uint32_t length;    /* Number of bytes following header. */
+        };
+    } header;
     uint8_t data[];
 } message_t;
 
