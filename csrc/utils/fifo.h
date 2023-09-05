@@ -59,7 +59,7 @@
       - prev: name of "prev" field.
       - elem: pointer to queue struct to insert.
  */
-#define QUEUE_PUSH(head, next, prev, elem) /* TODO. */
+#define QUEUE_PUSH(head, next, prev, elem)                                    \
       do {                                                                    \
             if (head == NULL) {                                               \
                   head = elem;                                                \
@@ -85,5 +85,5 @@
       do {                                                                    \
             pthread_spin_lock(lock);                                          \
             QUEUE_PUSH(head, next, prev, elem);                               \
-            pthread_spin_unlock(lock)
+            pthread_spin_unlock(lock);                                        \
       } while (0)
