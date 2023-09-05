@@ -241,7 +241,7 @@ cache_local_store(lcache_t *lc, char *path, uint8_t *data, size_t size)
     memcpy(loc->data, data, size);
 
     /* Insert into hash table. */
-    strncpy(loc->path, path, MAX_PATH_LEN);
+    strncpy(loc->path, path, 128);
     HASH_ADD_STR(lc->ht, path, loc);
 
     return 0;
@@ -257,7 +257,7 @@ cache_local_load(lcache_t *lc, request_t *request)
     HASH_FIND_STR(lc->ht, request->path, loc);
     if (loc == NULL) {
         DEBUG_LOG("attempted to load uncached file; %s", request->path);
-        return -ENOENT;
+        return -ENODATA;
     }
 
     /* Fill the request. */
@@ -276,13 +276,46 @@ cache_local_load(lcache_t *lc, request_t *request)
 bool
 cache_remote_contains(rcache_t *rc, char *path)
 {
-    /* TODO. */
+    rloc_t *loc = NULL;
+    HASH_FIND_STR(rc->ht, path, loc);
+    
+    return (loc != NULL);
 }
 
+/* Send a request to a peer for a file to be transfered. Will fail quickly if
+   the remote cache cannot serve this request. Assumes that the caller has
+   already removed REQUEST from USER's ready queue. Inserts request into USER's
+   hash table for pending network requests. */
 int
-cache_remote_load(rcache_t *rc, request_t *request)
+cache_remote_request(rcache_t *rc, ustate_t *user, request_t *request)
 {
-    /* TODO. */
+    /* Who owns the data? */
+    rloc_t *loc = NULL;
+    HASH_FIND_STR(rc->ht, request->path, loc);
+    if (loc == NULL) {
+        return -ENODATA;
+    }
+
+    /* Construct transfer request message according to cache.h specification. */
+    int path_len = strlen(request->path);
+    int message_len = sizeof(message_t) + sizeof(int) + path_len;
+    message_t *message = malloc(message_len);
+    if (message == NULL) {
+        return -ENOMEM;
+    }
+    message->header = TYPE_RQST;                        /* Header. */
+    *((int *) &message->data[0]) = path_len;            /* Path length. */
+    memcpy(&message->data[4], request->path, path_len); /* Path. */
+
+    /* Tell the manager to expect this file to be transferred. */
+    HASH_ADD_STR(user->network, path, request);
+
+    /* Send the message. */
+    pthread_spin_lock(&loc->owner->lock);
+    assert(send(loc->owner->sfd, (void *) message, message_len, 0) == message_len);
+    pthread_spin_unlock(&loc->owner->lock);
+
+    return 0;
 }
 
 
@@ -352,7 +385,7 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
     request_t *pending;
 
     /* Check if there's a request waiting in the ready queue. */
-    QUEUE_POP_SAFE(ustate->ready, &ustate->read_lock, next, prev, pending);
+    QUEUE_POP_SAFE(ustate->ready, &ustate->ready_lock, next, prev, pending);
     if (pending == NULL) {
         return 0;
     }
@@ -366,19 +399,17 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
             return status;
         }
 
-        QUEUE_PUSH_SAFE(&ustate->done, &ustate->done_lock, next, prev, pending);
+        QUEUE_PUSH_SAFE(ustate->done, &ustate->done_lock, next, prev, pending);
     }
 
     /* Check the remote cache. */
     if (cache_remote_contains(&c->rcache, pending->path)) {
-        int status = cache_remote_load(&c->rcache, pending);
+        int status = cache_remote_request(&c->rcache, ustate, pending);
         if (status < 0) {
             /* ISSUE: we leak a request struct here. */
-            DEBUG_LOG("cache_remote_load failed\n");
+            DEBUG_LOG("cache_remote_request failed\n");
             return status;
         }
-
-        QUEUE_PUSH(&ustate->network_inflight, next, prev, pending);
     }
 
     /* If not cached, issue IO. */
@@ -471,7 +502,7 @@ cache_get_submit(ustate_t *user, char *path)
 {
     /* Generate request. */
     request_t *request = NULL;
-    QUEUE_POP_SAFE(&user->free, &user->free_lock, next, prev, request);
+    QUEUE_POP_SAFE(user->free, &user->free_lock, next, prev, request);
     if (request == NULL) {
         DEBUG_LOG("&user->free is empty\n");
         return -EAGAIN; /* Try again once completed requests have been freed. */
@@ -481,7 +512,7 @@ cache_get_submit(ustate_t *user, char *path)
     shmify(request->path, request->shm_path, MAX_PATH_LEN + 1, MAX_SHM_PATH_LEN + 1);
 
     /* Submit request to the monitor. */
-    QUEUE_PUSH_SAFE(&user->ready, &user->read_lock, next, prev, request);
+    QUEUE_PUSH_SAFE(user->ready, &user->ready_lock, next, prev, request);
     
     return 0;
 }
@@ -493,7 +524,7 @@ cache_get_reap(ustate_t *user, request_t *out)
 {
     /* Try to get a completed request. */
     out = NULL;
-    QUEUE_POP_SAFE(&user->done, &user->done_lock, next, prev, out);
+    QUEUE_POP_SAFE(user->done, &user->done_lock, next, prev, out);
     if (out == NULL) {
         DEBUG_LOG("&user->done is empty\n");
         return -EAGAIN; /* Try again once request has been fulfilled. */
@@ -571,9 +602,9 @@ cache_init(cache_t *c, size_t capacity, unsigned queue_depth, int n_users)
         ustate->free[0].prev = NULL;
         ustate->free[queue_depth - 1].next = NULL;
 
-        /* The other queues start empty. */
+        /* The other queues and hash tables start empty. */
         ustate->ready = NULL;
-        ustate->network = NULL;
+        ustate->network = NULL; /* Hash table. */
         ustate->done = NULL;
 
         /* Initialize the io_uring queues. */
@@ -585,9 +616,9 @@ cache_init(cache_t *c, size_t capacity, unsigned queue_depth, int n_users)
         }
 
         /* Initialize the locks. */
-        pthread_spinlock_init(&ustate->free_lock, PTHREAD_PROCESS_SHARED);
-        pthread_spinlock_init(&ustate->ready_lock, PTHREAD_PROCESS_SHARED);
-        pthread_spinlock_init(&ustate->done_lock, PTHREAD_PROCESS_SHARED);
+        assert(!pthread_spinlock_init(&ustate->free_lock, PTHREAD_PROCESS_SHARED));
+        assert(!pthread_spinlock_init(&ustate->ready_lock, PTHREAD_PROCESS_SHARED));
+        assert(!pthread_spinlock_init(&ustate->done_lock, PTHREAD_PROCESS_SHARED));
     }
 
     /* Set up the local cache. */
@@ -598,7 +629,10 @@ cache_init(cache_t *c, size_t capacity, unsigned queue_depth, int n_users)
 
     /* Set up the remote cache. */
     c->rcache.ht = NULL;
-    
+    c->rcache.peers = NULL;
+    assert(!pthread_spinlock_init(&c->rcache.ht_lock));
+    assert(!pthread_spinlock_init(&c->rcache.peers_lock));
+
     /* Set up the total cache. */
     c->n_users = n_users;
     c->qdepth = queue_depth;

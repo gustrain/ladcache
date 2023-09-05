@@ -34,6 +34,17 @@
 #define MAX_NAME_LEN (128)                      /* Not including \0. */
 #define MAX_SYNC_SIZE (16 * 1024 * (MAX_PATH_LEN + 1))
 
+#define N_HEADER_BYTES (1)
+
+#define TYPE_SYNC (0b0001) /* File ownership synchronization. */
+#define TYPE_RQST (0b0000) /* File transfer request. */
+
+#define FLAG_NONE (0b00000000)
+#define FLAG_CRCT (0b00001000)  /* This message is a correction. */
+#define FLAG_FLG2 (0b00000100)  /* Unused flag. */
+#define FLAG_FLG3 (0b00000010)  /* Unused flag. */
+#define FLAG_FLG4 (0b00000001)  /* Unused flag. */
+
 /* File load request (queue entry). Shared memory accessible by both API users
    and the ladcache loader process. */
 typedef struct file_request {
@@ -77,16 +88,6 @@ typedef struct local_location {
     UT_hash_handle hh;
 } lloc_t;
 
-/* File data location for a remote cache. */
-typedef struct remote_location {
-    uint32_t ip;    /* IP of file owner. */
-    uint16_t port;  /* Port of file owner. */
-    size_t   size;  /* Size of file in bytes. */
-
-    /* Hash table. */
-    UT_hash_handle hh;
-} rloc_t;
-
 /* Local cache state. */
 typedef struct {
     lloc_t *ht;         /* Hash table. */
@@ -95,18 +96,66 @@ typedef struct {
     size_t  used;       /* Current usage of cache in bytes. */
 } lcache_t;
 
+/* General purpose network message struct. Messages follow the format below.
+
+            ┌────────┬─────────┬───────────┬──────────┬───┬───────────┬──────────┐
+    Sync    │header  │# entries│path length│filepath  │   │path length│filepath  │
+    Message │0000xxxx│4 bytes  │4 bytes    │var. bytes│...│4 bytes    │var. bytes│
+    (0001)  └────────┴─────────┴───────────┴──────────┴───┴───────────┴──────────┘
+            ┌────────┬───────────┬──────────┐
+    File    │header  │path length│filepath  │
+    Request │0000xxxx│4 bytes    │var. bytes│
+    (0000)  └┬───────┴───────────┴──────────┘
+             │
+             │ ┌──────┬──┬──┬──┬──┐
+             └►│type  │CR│FL│FL│FL│
+               │4 bits│CT│AG│AG│AG│
+               └──────┴──┴──┴──┴──┘
+                        BIT FLAGS
+
+*/
+typedef struct {
+    uint8_t header;
+    uint8_t data[];
+} message_t;
+
+/* Peer record. Hash table entry for peer IP -> socket. All records will be 
+   shared by the network manager process, and used by the manager's threads. */
+typedef struct {
+    int sfd;                    /* Socket fd for this peer. */
+    pthread_spinlock_t *lock;   /* Protects SFD from concurrent usage. */
+
+    /* Hash table. */
+    UT_hash_handle hh;
+} peer_t;
+
+/* File data location for a remote cache. */
+typedef struct remote_location {
+    uint32_t  ip;       /* IP of file owner. */
+    peer_t   *owner;    /* Peer state for owner. Also accessible through HT. */
+    uint16_t  port;     /* Port of file owner. */
+    size_t    size;     /* Size of file in bytes. */
+
+    /* Hash table. */
+    UT_hash_handle hh;
+} rloc_t;
+
 /* Remote cache state. */
 typedef struct {
-    rloc_t *ht;     /* Hash table. */
+    rloc_t             *ht;             /* Filepath -> rloc_t hash table. */
+    pthread_spinlock_t  ht_lock;        /* Protects HT. */
+
+    peer_t             *peers;          /* Hash table of peer IP -> socket. */
+    pthread_spinlock_t  peers_lock;     /* Protects PEERS. */
 } rcache_t;
 
 /* User states. Private between users, shared with loader. */
 typedef struct {
-    /* Status queues. */
+    /* Status queues and hash tables. */
     request_t *head;                /* Only used for teardown. */
     request_t *free;                /* Unused request_t structs. */
     request_t *ready;               /* Ready requests waiting to be executed. */
-    request_t *network;             /* Requests being served by network. */
+    request_t *network;             /* Requests being served by network (HT). */
     request_t *done;                /* Fulfilled requests. */
 
     /* Asynchronous IO. */
@@ -117,6 +166,16 @@ typedef struct {
     pthread_spinlock_t ready_lock;
     pthread_spinlock_t done_lock;
 } ustate_t;
+
+/* Peer record. Hash table entry for peer IP -> socket. All records will be 
+   shared by the network manager process, and used by the manager's threads. */
+typedef struct {
+    int sfd;                    /* Socket fd for this peer. */
+    pthread_spinlock_t *lock;   /* Protects SFD from concurrent usage. */
+
+    /* Hash table. */
+    UT_hash_handle hh;
+} peer_t;
 
 /* Complete/total cache state. */
 typedef struct {
