@@ -29,6 +29,8 @@
 #ifndef __CACHE_H__
 #define __CACHE_H__
 
+#define MAX_IDLE_ITERS (64 * 1024)
+
 #define MAX_PATH_LEN (128)                      /* Not including \0. */
 #define MAX_SHM_PATH_LEN (MAX_PATH_LEN + 1)     /* Not including \0. */
 #define MAX_NAME_LEN (128)                      /* Not including \0. */
@@ -95,10 +97,13 @@ typedef struct local_location {
 
 /* Local cache state. */
 typedef struct {
-    lloc_t *ht;         /* Hash table. */
-    lloc_t *unsynced;   /* Link list of unsynced filenames. */
-    size_t  capacity;   /* Maximum capacity of cache in bytes. */
-    size_t  used;       /* Current usage of cache in bytes. */
+    lloc_t *ht;           /* Hash table. */
+    lloc_t *unsynced;     /* Link list of unsynced filenames. */
+    size_t  n_unsynced;   /* Length of UNSYNCED. */
+    size_t  threshold;    /* Maximum length of UNSYNCED before the list is
+                             flushed to all known peers. */
+    size_t  capacity;     /* Maximum capacity of cache in bytes. */
+    size_t  used;         /* Current usage of cache in bytes. */
 } lcache_t;
 
 /* General purpose network message struct. Messages follow the format below.
@@ -119,10 +124,10 @@ typedef struct {
         ──────►  └────────┴────────┘
 
                         ┌───────┬──────┬──┬──┬──┬──┬───────┐
-                header  │0xADDA │type  │CR│UN│FL│FL│length │
-                format  │2 bytes│4 bits│CT│BL│G2│G3│4 bytes│
+                header  │0xADDA │type  │CR│UN│HL│FL│length │
+                format  │2 bytes│4 bits│CT│BL│LO│G3│4 bytes│
                         └───────┴──────┴──┴──┴──┴──┴───────┘
-                                BIT FLAGS
+                                         BIT FLAGS
     
     The first 2 bytes of the header are just an arbitrary magic value. The
     header's length field specifies the number of bytes to follow the header in
@@ -135,7 +140,7 @@ typedef struct {
             mtype_t  type : 4;  /* Message type. */
             bool     crct : 1;  /* Corrective message flag. */
             bool     unbl : 1;  /* Unable flag (i.e., could not fulfill). */
-            bool     flg2 : 1;  /* Unused. Flag 2. */
+            bool     hllo : 1;  /* Hello flag (i.e., register existence no-op). */
             bool     flg3 : 1;  /* Unused. Flag 3. */
             uint32_t length;    /* Number of bytes following header. */
         };
@@ -178,10 +183,10 @@ typedef struct {
 
 /* Complete/total cache state. */
 typedef struct {
-    lcache_t    lcache;     /* Local cache. */
-    rcache_t    rcache;     /* Remote cache. */
-    int         n_users;    /* Number of users. */
-    int         qdepth;     /* Queue depth. */
+    lcache_t lcache;    /* Local cache. */
+    rcache_t rcache;    /* Remote cache. */
+    int      n_users;   /* Number of users. */
+    int      qdepth;    /* Queue depth. */
 
     /* Threading info. */
     pthread_t manager_thread;
@@ -190,5 +195,14 @@ typedef struct {
     /* User-shared memory. */
     ustate_t *ustates;  /* N_USERS + 1 user states. +1 for remote requests. */
 } cache_t;
+
+/* Creation/destruction methods. */
+cache_t *cache_new(void);
+void cache_destroy(cache_t *c);
+int cache_init(cache_t *c, size_t capacity, unsigned queue_depth, int max_unsynced, int n_users);
+
+/* Interface methods. */
+int cache_get_submit(ustate_t *user, char *path);
+int cache_get_reap(ustate_t *user, request_t *out);
 
 #endif

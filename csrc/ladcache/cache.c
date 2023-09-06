@@ -188,11 +188,12 @@ cache_register(cache_t *c)
     /* TODO. */
 }
 
-/* TODO. Broadcast a SYNC message to update remote cache directories. */
+/* Send a message to every known peer with our list of newly-cached files.
+   Returns 0 on success, -errno on failure. */
 int
-cache_sync_ownership()
+cache_sync(cache_t *c)
 {
-    /* TODO. Announce */
+    /* TODO. */
 }
 
 /* Handle a file request by sending the requested file data. Returns 0 on
@@ -662,6 +663,7 @@ manager_check_done(cache_t *c, ustate_t *ustate)
 
             /* Add to list of filenames to be synchronized. */
             QUEUE_PUSH(c->lcache.unsynced, next, prev, loc);
+            c->lcache.n_unsynced++;
         }
 
        skip_cache:
@@ -675,12 +677,33 @@ manager_loop(cache_t *c)
 {
     ustate_t *ustate;
     request_t *pending;
+    size_t prev_length;
+    size_t idle_iters = 0;
 
     /* Loop round-robin through the user ustates and check for pending and
        completed requests that require status queue updates. */
     for (unsigned i = 0; true; ustate = &c->ustates[i++ % c->n_users]) {
+        /* Check if we need to sync our newly cached files with peers. We do
+           this when we've either reached the submission threshold, or when
+           we've looped many times without caching anything new. */
+        if ((c->lcache.n_unsynced >= c->lcache.threshold && c->lcache.threshold > 0) ||
+            (idle_iters > MAX_IDLE_ITERS && c->lcache.n_unsynced > 0)) {
+            DEBUG_LOG("Syncing %lu filepaths.\n", c->lcache.n_unsynced);
+            idle_iters = 0;
+            cache_sync(c);
+        }
+
+        prev_length = c->lcache.n_unsynced;
         manager_check_ready(c, ustate);
         manager_check_done(c, ustate);
+
+        /* Reset the idle count if we've got new unsynced data. Otherwise,
+           continue to increment it. */
+        if (c->lcache.n_unsynced > prev_length) {
+            idle_iters = 0;
+        } else {
+            idle_iters++;
+        }
     }
 }
 
@@ -774,7 +797,11 @@ cache_destroy(cache_t *c)
 
 /* Allocate a complete cache. Returns 0 on success and -errno on failure. */
 int
-cache_init(cache_t *c, size_t capacity, unsigned queue_depth, int n_users)
+cache_init(cache_t *c,
+           size_t capacity,
+           unsigned queue_depth,
+           int max_unsynced,
+           int n_users)
 {
     /* Allocate user states. */
     if ((c->ustates = mmap_alloc(n_users * sizeof(ustate_t))) == NULL) {
@@ -834,6 +861,7 @@ cache_init(cache_t *c, size_t capacity, unsigned queue_depth, int n_users)
 
     /* Set up the total cache. */
     c->n_users = n_users;
+    c->n_sync = max_unsynced;
     c->qdepth = queue_depth;
 
     return 0;
