@@ -36,15 +36,19 @@
 
 #define HEADER_MAGIC (0xADDA)
 
-#define TYPE_SYNC (0b0010) /* File ownership synchronization. */
-#define TYPE_RSPN (0b0001) /* File transfer response. */
-#define TYPE_RQST (0b0000) /* File transfer request. */
-
 #define FLAG_NONE (0b00000000)
 #define FLAG_CRCT (0b00001000)  /* This message is a correction. */
 #define FLAG_FLG2 (0b00000100)  /* Unused flag. */
 #define FLAG_FLG3 (0b00000010)  /* Unused flag. */
 #define FLAG_FLG4 (0b00000001)  /* Unused flag. */
+
+/* Network message type. Number of types must not exceed 16. */
+typedef enum {
+    TYPE_RQST,  /* File transfer request. */
+    TYPE_RSPN,  /* File transfer response. */
+    TYPE_SYNC,  /* File ownership synchronization. */
+    N_MTYPES
+} mtype_t;
 
 /* File load request (queue entry). Shared memory accessible by both API users
    and the ladcache loader process. */
@@ -128,7 +132,7 @@ typedef struct {
         uint8_t raw[7];
         struct {
             uint16_t magic;     /* Magic value (HEADER_MAGIC). */
-            uint8_t  type : 4;  /* Message type. */
+            mtype_t  type : 4;  /* Message type. */
             bool     crct : 1;  /* Corrective message flag. */
             bool     unbl : 1;  /* Unable flag (i.e., could not fulfill). */
             bool     flg2 : 1;  /* Unused. Flag 2. */

@@ -92,6 +92,90 @@ file_get_size(int fd)
     return -ENODEV;
 }
 
+/* Allocates a message_t struct, points OUT to it, and reads a message from FD
+   (socket) into it. Returns 0 on success, -errno on failure. */
+int
+network_get_message(int fd, message_t **out)
+{
+    ssize_t bytes;
+    uint32_t len;
+
+    /* Get the request header. */
+    message_t *message = malloc(sizeof(message_t));
+    if ((bytes = read(fd, (void *) message, sizeof(message_t))) != sizeof(message_t)) {
+        DEBUG_LOG("Received a message that was too short (%ld bytes).\n", bytes);
+        free(message);
+        return -EBADMSG;
+    }
+
+    /* Sanity check. */
+    if (message->header.magic != HEADER_MAGIC) {
+        DEBUG_LOG("Received message with invalid header magic (0x%hx, should be 0x%hx).\n", message->header.magic, HEADER_MAGIC);
+        free(message);
+        return -EBADMSG;
+    }
+    if ((len = message->header.length) == 0) {
+        return 0;
+    }
+
+    /* Allocate space for the rest of the message. */
+    if (realloc(message, sizeof(message_t) + len) == NULL) {
+        DEBUG_LOG("Unable to allocate an additional %ld bytes for full message.\n", len);
+        free(message);
+        return -ENOMEM;
+    }
+
+    /* Read the rest of the message. */
+    if ((bytes = read(fd, (void *) message->data, len)) != len) {
+        DEBUG_LOG("Expected %u bytes but got %ld.\n", len, bytes);
+        free(message);
+        return -EBADMSG;
+    }
+
+    *out = message;
+    return 0;
+}
+
+/* Constructs and sends a message to the socket on FD with SIZE bytes of DATA
+   as the payload. Returns 0 on sucess and -errno on failure. */
+int
+network_send_message(mtype_t type, int flags, void *data, uint32_t size, int fd)
+{
+    /* Configure and send the header. */
+    message_t header;
+    memset(&header, 0, sizeof(message_t));
+
+    /* Configure the header. */
+    header.header.type = type;
+    header.header.magic = HEADER_MAGIC;
+    header.header.length = size;
+
+    /* Send the header. */
+    ssize_t bytes;
+    if ((bytes = send(fd, (void *) &header, sizeof(message_t), 0)) != sizeof(message_t)) {
+        if (bytes < 0) {
+            DEBUG_LOG("Failed to send header; %s.\n", strerror(errno));
+            return -errno;
+        } else {
+            DEBUG_LOG("Failed to send entire header (%ld/%lu bytes sent).\n", bytes, sizeof(message_t));
+            return -EAGAIN;
+        }
+    }
+    
+    /* Send the data. */
+    if ((bytes = send(fd, data, size, 0)) != size) {
+        if (bytes < 0) {
+            DEBUG_LOG("Failed to send payload; %s.\n", strerror(errno));
+            return -errno;
+        } else {
+            DEBUG_LOG("Failed to send entire payload (%ld/%u bytes sent).\n", bytes, size);
+            return -EAGAIN;
+        }
+    }
+
+    return 0;
+}
+
 /* --------------------------- */
 /*   NETWORK (manager scope)   */
 /* --------------------------- */
@@ -115,47 +199,41 @@ cache_sync_ownership()
 int
 monitor_handle_request(message_t *message)
 {
-    /* Prepare and send message. Can do header separately. */
+    
+    /* TODO. Prepare and send message. Can do header separately. */
+}
+
+/* TODO. Handle a directory sync message. */
+int
+monitor_handle_sync(message_t *message)
+{
+    /* TODO. */
 }
 
 /* Handles a remote read request. */
 void
 monitor_handle_connection(void *arg)
 {
-    ssize_t bytes;
     int client_fd = (int) arg;
 
-    /* Get the request header. */
-    message_t *message = malloc(sizeof(message_t));
-    if ((bytes = read(client_fd, (void *) message, sizeof(message_t))) != sizeof(message_t)) {
-        DEBUG_LOG("Received a message that was too short (%ld bytes).\n", bytes);
+    /* Read a message from the socket. */
+    message_t *message;
+    int status = network_get_message(client_fd, &message);
+    if (status < 0) {
+        DEBUG_LOG("network_get_message failed; %s\n", strerror(-status));
         close(client_fd);
         return;
     }
 
-    /* Sanity check. */
-    if (message->header.magic != HEADER_MAGIC) {
-        DEBUG_LOG("Received message with invalid header magic (0x%hx, should be 0x%hx).\n", message->header.magic, HEADER_MAGIC);
-        close(client_fd);
-        return;
-    }
-    uint32_t len = message->header.length;
-
-    /* Allocate space for the rest of the message. */
-    if (realloc(message, len) == NULL) {
-        DEBUG_LOG("Unable to allocate an additional %ld bytes for full message.\n", len);
-        close(client_fd);
-        return;
+    /* Dispatch for the proper handler for this message type. */
+    switch (message->header.type) {
+        case TYPE_RQST: monitor_handle_request(message); break;
+        case TYPE_SYNC: monitor_handle_sync(message); break;
+        default:
+            DEBUG_LOG("Received an invalid first message; type = 0x%hx.\n", message->header.type);
     }
 
-    /* Read the rest of the message. */
-    if ((bytes = read(client_fd, (void *) message->data, len)) != len) {
-        DEBUG_LOG("Expected %u bytes but got %ld.\n", len, bytes);
-        close(client_fd);
-        return;
-    }
-
-    /* TODO. Check if we have the file data and respond to them with it. */
+    close(client_fd);
 }
 
 /* Monitor main loop. Handles all incoming remote read requests. Should never
@@ -358,67 +436,57 @@ cache_remote_load(void *args)
         .sin_port = loc->port
     };
 
-    /* Construct transfer request message according to cache.h specification. */
-    uint32_t path_len = strlen(request->path);
-    uint32_t message_len = sizeof(uint32_t) + path_len;
-    ssize_t  total_len = sizeof(message_t) + message_len;
-    message_t *message = (message_t *) calloc(1, total_len);
-    if (message == NULL) {
-        return -ENOMEM;
-    }
-    message->header.type = TYPE_RQST;
-    message->header.magic = HEADER_MAGIC;
-    message->header.length = message_len;
-    memcpy(&message->data[0], (void *) path_len, sizeof(uint32_t));
-    memcpy(&message->data[4], request->path, path_len + 1); /* +1 for 0 byte. */
-
-    /* Connect to the peer's manager socket. */
+    /* Open the socket. */
     int peer_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (peer_fd < 0) {
         /* ISSUE: leaking this request. */
+        DEBUG_LOG("Failed to open socket; %s.\n", strerror(errno));
         return -errno;
     }
     if (connect(peer_fd, &peer_addr, sizeof(peer_addr)) < 0) {
         /* ISSUE: leaking this request. */
+        DEBUG_LOG("Failed to connect to peer; %s.\n", strerror(errno));
         close(peer_fd);
         return -errno;
     }
 
-    /* Send our request. */
-    int bytes = send(peer_fd, (void *) message, message_len, 0);
-    if (bytes != total_len) {
-        /* ISSUE: leaking this request. */
-        DEBUG_LOG("Failed to send entire message (sent %ld/%ld bytes).\n", bytes, total_len);
+    /* Send them a request for the file. */
+    int status = network_send_message(TYPE_RQST,
+                                      FLAG_NONE,
+                                      request->path,
+                                      strlen(request->path) + 1,
+                                      peer_fd);
+    if (status < 0) {
+        DEBUG_LOG("Failed to send message; %s.\n", strerror(-status));
         close(peer_fd);
+        return status;
+    }
+
+    /* Wait for a response. */
+    message_t *response;
+    status = network_get_message(peer_fd, &response);
+    close(peer_fd);
+    if (status < 0) {
+        DEBUG_LOG("network_get_message failed; %s\n", strerror(-status));
+        return status;
+    }
+
+    /* Make sure we got a sensible response. */
+    if (response->header.type != TYPE_RSPN) {
+        DEBUG_LOG("Received an incorrect message type (type = 0x%hx)", response->header.type);
         return;
     }
 
-    /* Await the header of a response. */
-    if (read(peer_fd, (void *) message, sizeof(message_t)) != sizeof(message_t)) {
-        DEBUG_LOG("Received an invalid response (short header).\n");
-        close(peer_fd);
+    /* Was the peer unable to fulfill the request? */
+    if (response->header.unbl) {
+        DEBUG_LOG("Peer unable to fulfill request for %s.\n", request->path);
         return;
     }
 
-    /* Check the magic and the header type for validity. */
-    if (message->header.magic != HEADER_MAGIC || message->header.type != TYPE_RSPN) {
-        DEBUG_LOG("Received an invalid header (magic = 0x%hx, type = 0x%hx)", message->header.magic, message->header.type);
-        close(peer_fd);
-        return;
-    }
-    uint32_t len = message->header.length;
-
-    /* TODO. Allocate an shm object for the file. */
+    /* TODO. Allocate an shm object for the file data. */
     void *ptr = NULL;
 
-    /* If everything is valid then we can read the file data. */
-    if ((bytes = read(peer_fd, ptr, len)) != len) {
-        DEBUG_LOG("Received insufficient file data (%ld/%u bytes).\n", bytes, len);
-        close(peer_fd);
-        return;
-    }
-
-    /* TODO. Configure the response and push into the done queue. */
+    /* TODO. Configure the request and push into the done queue. */
 
     return 0;
 }
