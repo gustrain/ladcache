@@ -150,12 +150,20 @@ typedef struct {
 
 /* File data location for a remote cache. */
 typedef struct remote_location {
-    uint32_t ip;        /* IP of file owner. */
-    char     path[];    /* Filepath. Hash table key. */
+    in_addr_t ip;       /* IPv4 address of file owner. */
+    char      path[];   /* Filepath. Hash table key. */
 
     /* Hash table. */
     UT_hash_handle hh;
 } rloc_t;
+
+/* Peer record. */
+typedef struct peer_record {
+    in_addr_t ip;   /* Peer's IPv4 address. */
+
+    struct peer_record *next;   /* Next entry in peers list. */
+    struct peer_record *prev;   /* Previous entry in peers list. */
+} peer_t;
 
 /* Remote cache state. */
 typedef struct {
@@ -182,10 +190,11 @@ typedef struct {
 
 /* Complete/total cache state. */
 typedef struct {
-    lcache_t lcache;    /* Local cache. */
-    rcache_t rcache;    /* Remote cache. */
-    int      n_users;   /* Number of users. */
-    int      qdepth;    /* Queue depth. */
+    lcache_t  lcache;   /* Local cache. */
+    rcache_t  rcache;   /* Remote cache. */
+    int       n_users;  /* Number of users. */
+    int       qdepth;   /* Queue depth. */
+    peer_t   *peers;    /* List of peers. */
 
     /* Threading info. */
     pthread_t manager_thread;

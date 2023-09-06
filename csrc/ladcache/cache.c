@@ -92,6 +92,34 @@ file_get_size(int fd)
     return -ENODEV;
 }
 
+/* Open a socket to IP on the default port. Returns FD on success, -errno on
+   failure. */
+int
+network_connect(in_addr_t ip)
+{
+    struct sockaddr_in peer_addr = {
+        .sin_addr = ip,
+        .sin_family = AF_INET,
+        .sin_port = PORT_DEFAULT
+    };
+
+    /* Open the socket. */
+    int peer_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (peer_fd < 0) {
+        /* ISSUE: leaking this request. */
+        DEBUG_LOG("Failed to open socket; %s.\n", strerror(errno));
+        return -errno;
+    }
+    if (connect(peer_fd, &peer_addr, sizeof(peer_addr)) < 0) {
+        /* ISSUE: leaking this request. */
+        DEBUG_LOG("Failed to connect to peer; %s.\n", strerror(errno));
+        close(peer_fd);
+        return -errno;
+    }
+
+    return peer_fd;
+}
+
 /* Allocates a message_t struct, points OUT to it, and reads a message from FD
    (socket) into it. Returns 0 on success, -errno on failure. */
 int
@@ -189,11 +217,69 @@ cache_register(cache_t *c)
 }
 
 /* Send a message to every known peer with our list of newly-cached files.
-   Returns 0 on success, -errno on failure. */
+   Returns 0 on success, -errno on failure. Assumes that there is at least one
+   unsynced filepath in the list. */
 int
 cache_sync(cache_t *c)
 {
-    /* TODO. */
+    /* No-op if the unsynced list is already empty. */
+    lloc_t *loc = c->lcache.unsynced;
+    if (loc == NULL) {
+        return 0;
+    }
+
+    /* Determine the sum of all filepath lengths. */
+    uint32_t n_entries = 0;
+    size_t payload_len = 0;
+    do {
+        payload_len += strlen(loc->path) + 1; /* +1 for '\0' byte. */
+        n_entries++;
+    } while ((loc = loc->next) != NULL);
+
+    /* Allocate our message payload. */
+    char *payload = malloc(sizeof(uint32_t) + payload_len);
+    if (payload == NULL) {
+        DEBUG_LOG("Unable to allocate %lu bytes for sync payload.\n", payload_len);
+        return -ENOMEM;
+    }
+    *((uint32_t *) payload) = n_entries;
+
+    /* Write all of the filepaths and clear the unsynced list. */
+    char *fp_dest = payload + sizeof(uint32_t);
+    do {
+        QUEUE_POP(c->lcache.unsynced, next, prev, loc);
+        strncpy(fp_dest, loc->path, MAX_PATH_LEN + 1);
+        fp_dest += strlen(loc->path + 1);
+    } while (c->lcache.unsynced != NULL);
+
+
+    /* Send the message to everyone we know. */
+    peer_t *peer = c->peers;
+    do {
+        /* Open the socket. */
+        int peer_fd = network_connect(peer->ip);
+        if (peer_fd < 0) {
+            DEBUG_LOG("network_connect failed; %s\n", strerror(-peer_fd));
+            free(payload);
+            return peer_fd;
+        }
+
+        /* Send the message. */
+        int status = network_send_message(TYPE_SYNC,
+                                          FLAG_NONE,
+                                          (void *) payload,
+                                          payload_len,
+                                          peer_fd);
+        if (status < 0) {
+            DEBUG_LOG("failed to send sync message; %s\n", strerror(-status));
+            free(payload);
+            return status;
+        }
+        close(peer_fd);
+    } while ((peer = peer->next) != NULL);
+
+    free(payload);
+    return 0;
 }
 
 /* Handle a file request by sending the requested file data. Returns 0 on
@@ -228,11 +314,11 @@ monitor_handle_sync(message_t *message, cache_t *c, int fd)
     if (status < 0) {
         return -errno;
     }
-    uint32_t ip = addr.sin_addr.s_addr;
+    in_addr_t ip = addr.sin_addr.s_addr;
 
     /* Add their filepaths to the remote cache directory. */
     uint32_t n_entries = *((uint32_t *) message->data);
-    char *filepath = ((char *) message->data) + 4;
+    char *filepath = ((char *) message->data) + sizeof(uint32_t);
     for (uint32_t i = 0; i < n_entries; i++) {
         /* Check string is in valid memory range. */
         size_t fp_len = strlen(filepath);
@@ -450,7 +536,7 @@ cache_local_load(lcache_t *lc, request_t *request)
 
 
 /* ------------------------------------------ */
-/*   REMOTE CACHE INTERFACE (Manager scope)   */
+/*   REMOTE CACHE INTERFACE (manager scope)   */
 /* ------------------------------------------ */
 
 /* Checks the remote cache for PATH. Returns TRUE if contained, FALSE if not. */
@@ -490,24 +576,12 @@ cache_remote_load(void *args)
         /* ISSUE: leaking this request. */
         return -ENODATA;
     }
-    struct sockaddr_in peer_addr = {
-        .sin_addr = loc->ip,
-        .sin_family = AF_INET,
-        .sin_port = PORT_DEFAULT
-    };
 
-    /* Open the socket. */
-    int peer_fd = socket(AF_INET, SOCK_STREAM, 0);
+    /* Connect to them. */
+    int peer_fd = network_connect(loc->ip);
     if (peer_fd < 0) {
-        /* ISSUE: leaking this request. */
-        DEBUG_LOG("Failed to open socket; %s.\n", strerror(errno));
-        return -errno;
-    }
-    if (connect(peer_fd, &peer_addr, sizeof(peer_addr)) < 0) {
-        /* ISSUE: leaking this request. */
-        DEBUG_LOG("Failed to connect to peer; %s.\n", strerror(errno));
-        close(peer_fd);
-        return -errno;
+        DEBUG_LOG("network_connect failed; %s\n", strerror(-peer_fd));
+        return peer_fd;
     }
 
     /* Send them a request for the file. */
@@ -818,6 +892,9 @@ cache_new(void)
 void
 cache_destroy(cache_t *c)
 {
+    /* TODO. Update to clean up rloc_t and lloc_t structs from hash tables, and
+             free all of the peer_t records. */
+
     if (c == NULL) {
         return;
     }
@@ -895,6 +972,8 @@ cache_init(cache_t *c,
     /* Set up the local cache. */
     c->lcache.ht = NULL;
     c->lcache.unsynced = NULL;
+    c->lcache.n_unsynced = 0;
+    c->lcache.threshold = max_unsynced;
     c->lcache.capacity = capacity;
     c->lcache.used = 0;
 
@@ -904,8 +983,8 @@ cache_init(cache_t *c,
 
     /* Set up the total cache. */
     c->n_users = n_users;
-    c->n_sync = max_unsynced;
     c->qdepth = queue_depth;
+    c->peers = NULL;
 
     return 0;
 }
