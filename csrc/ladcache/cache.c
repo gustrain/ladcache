@@ -217,10 +217,48 @@ monitor_handle_request(message_t *message, cache_t *c, int fd)
 
 /* TODO. Handle a directory sync message. */
 int
-monitor_handle_sync(message_t *message)
+monitor_handle_sync(message_t *message, cache_t *c, int fd)
 {
-    /* TODO. */
-    return -ENOSYS;
+    /* TODO. Verify filepaths are valid ('\0' terminated, etc.) */
+
+    /* Figure out who we're talking to. */
+    struct sockaddr_in addr;
+    socklen_t addr_size = sizeof(addr);
+    int status = getpeername(fd, &addr, &addr_size);
+    if (status < 0) {
+        return -errno;
+    }
+    uint32_t ip = addr.sin_addr.s_addr;
+
+    /* Add their filepaths to the remote cache directory. */
+    uint32_t n_entries = *((uint32_t *) message->data);
+    char *filepath = ((char *) message->data) + 4;
+    for (uint32_t i = 0; i < n_entries; i++) {
+        /* Check string is in valid memory range. */
+        size_t fp_len = strlen(filepath);
+        if (filepath + fp_len + 1 > message->data + message->header.length) {
+            return -ERANGE;
+        }
+
+        /* Prepare the hash table entry.
+        
+           NOTE: it would be more efficient to malloc a single chunk of memory
+           for all entries, however this would be more difficult to track. */
+        rloc_t *loc = malloc(sizeof(rloc_t) + fp_len + 1);
+        if (loc == NULL) {
+            return -ENOMEM;
+        }
+        loc->ip = ip;
+        strncpy(loc->path, filepath, fp_len + 1);
+
+        /* Add to the remote cache directory. */
+        HASH_ADD_STR(c->rcache.ht, path, loc);
+
+        /* Move to the next filepath. */
+        filepath += strlen(filepath) + 1;
+    }
+
+    return 0;
 }
 
 /* Arguments to monitor_handle_connection. */
@@ -249,11 +287,12 @@ monitor_handle_connection(void *args)
     /* Dispatch for the proper handler for this message type. */
     switch (message->header.type) {
         case TYPE_RQST: monitor_handle_request(message, c, peer_fd); break;
-        case TYPE_SYNC: monitor_handle_sync(message); break;
+        case TYPE_SYNC: monitor_handle_sync(message, c, peer_fd); break;
         default:
             DEBUG_LOG("Received an invalid first message; type = 0x%hx.\n", message->header.type);
     }
 
+    free(message);
     close(peer_fd);
 }
 
@@ -383,7 +422,7 @@ cache_local_store(lcache_t *lc, char *path, uint8_t *data, size_t size)
     memcpy(loc->data, data, size);
 
     /* Insert into hash table. */
-    strncpy(loc->path, path, 128);
+    strncpy(loc->path, path, MAX_PATH_LEN + 1);
     HASH_ADD_STR(lc->ht, path, loc);
 
     return 0;
@@ -454,7 +493,7 @@ cache_remote_load(void *args)
     struct sockaddr_in peer_addr = {
         .sin_addr = loc->ip,
         .sin_family = AF_INET,
-        .sin_port = loc->port
+        .sin_port = PORT_DEFAULT
     };
 
     /* Open the socket. */
@@ -504,7 +543,11 @@ cache_remote_load(void *args)
         return;
     }
 
-    /* TODO. Allocate an shm object for the file data. */
+    /* TODO. Allocate an shm object for the file data.
+    
+       NOTE: it would be more efficient to have read() read directly into the
+             shm object, however this would complicate the get_message interface
+             and so for now we'll just eat the copy cost. */
     void *ptr = NULL;
 
     /* TODO. Configure the request and push into the done queue. */
@@ -653,8 +696,8 @@ manager_check_done(cache_t *c, ustate_t *ustate)
                 .shm_fd = request->_lfd_shm,
                 .size = request->size,
             };
-            strncpy(loc->path, request->path, MAX_PATH_LEN);
-            strncpy(loc->shm_path, request->shm_path, MAX_SHM_PATH_LEN);
+            strncpy(loc->path, request->path, MAX_PATH_LEN + 1);
+            strncpy(loc->shm_path, request->shm_path, MAX_SHM_PATH_LEN + 1);
 
             /* Add to the hash table indexed by PATH. */
             HASH_ADD_STR(c->lcache.ht, path, loc);
@@ -733,7 +776,7 @@ cache_get_submit(ustate_t *user, char *path)
         return -EAGAIN; /* Try again once completed requests have been freed. */
     }
     memset(request, 0, sizeof(request_t));
-    strncpy(request->path, path, MAX_PATH_LEN);
+    strncpy(request->path, path, MAX_PATH_LEN + 1);
     shmify(request->path, request->shm_path, MAX_PATH_LEN + 1, MAX_SHM_PATH_LEN + 1);
 
     /* Submit request to the monitor. */

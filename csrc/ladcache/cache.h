@@ -150,9 +150,8 @@ typedef struct {
 
 /* File data location for a remote cache. */
 typedef struct remote_location {
-    uint32_t  ip;       /* IP of file owner. */
-    uint16_t  port;     /* Port of file owner. */
-    size_t    size;     /* Size of file in bytes. */
+    uint32_t ip;        /* IP of file owner. */
+    char     path[];    /* Filepath. Hash table key. */
 
     /* Hash table. */
     UT_hash_handle hh;
