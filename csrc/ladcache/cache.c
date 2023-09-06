@@ -92,6 +92,11 @@ file_get_size(int fd)
     return -ENODEV;
 }
 
+
+/* --------------------------- */
+/*   NETWORK (manager scope)   */
+/* --------------------------- */
+
 /* Open a socket to IP on the default port. Returns FD on success, -errno on
    failure. */
 int
@@ -205,7 +210,7 @@ network_send_message(mtype_t type, int flags, void *data, uint32_t size, int fd)
 }
 
 /* --------------------------- */
-/*   NETWORK (manager scope)   */
+/*   MONITOR (manager scope)   */
 /* --------------------------- */
 
 /* Announce our existence to other members of the distributed cache. */
@@ -301,7 +306,7 @@ monitor_handle_request(message_t *message, cache_t *c, int fd)
     return network_send_message(TYPE_RSPN, FLAG_NONE, loc->data, loc->size, fd);
 }
 
-/* TODO. Handle a directory sync message. */
+/* Handle a directory sync message. */
 int
 monitor_handle_sync(message_t *message, cache_t *c, int fd)
 {
