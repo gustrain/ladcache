@@ -195,12 +195,23 @@ cache_sync_ownership()
     /* TODO. Announce */
 }
 
-/* TODO. Handle a file request by sending the requested file data. */
+/* Handle a file request by sending the requested file data. Returns 0 on
+   success, -errno on failure. */
 int
-monitor_handle_request(message_t *message)
+monitor_handle_request(message_t *message, cache_t *c, int fd)
 {
-    
-    /* TODO. Prepare and send message. Can do header separately. */
+    /* TODO. Verify the filepath is the correct length (i.e., \0 terminated). */
+
+    /* Try to retrieve the requested file from our cache. If uncached, reply
+       that we are unable to fulfill their request. */
+    lloc_t *loc;
+    HASH_FIND_STR(c->lcache.ht, (char *) message->data, loc);
+    if (loc == NULL) {
+        return network_send_message(TYPE_RSPN, FLAG_UNBL, NULL, 0, fd);
+    }
+
+    /* Otherwise, reply with our cached file data. */
+    return network_send_message(TYPE_RSPN, FLAG_NONE, loc->data, loc->size, fd);
 }
 
 /* TODO. Handle a directory sync message. */
@@ -208,32 +219,41 @@ int
 monitor_handle_sync(message_t *message)
 {
     /* TODO. */
+    return -ENOSYS;
 }
+
+/* Arguments to monitor_handle_connection. */
+struct monitor_handle_connection_args {
+    cache_t *c;
+    int peer_fd;
+};
 
 /* Handles a remote read request. */
 void
-monitor_handle_connection(void *arg)
+monitor_handle_connection(void *args)
 {
-    int client_fd = (int) arg;
+    /* Get the arguments passed to us. */
+    cache_t *c = ((struct monitor_handle_connection_args *) args)->c;
+    int peer_fd = ((struct monitor_handle_connection_args *) args)->peer_fd;
 
-    /* Read a message from the socket. */
+    /* Read the initial message from the socket. */
     message_t *message;
-    int status = network_get_message(client_fd, &message);
+    int status = network_get_message(peer_fd, &message);
     if (status < 0) {
         DEBUG_LOG("network_get_message failed; %s\n", strerror(-status));
-        close(client_fd);
+        close(peer_fd);
         return;
     }
 
     /* Dispatch for the proper handler for this message type. */
     switch (message->header.type) {
-        case TYPE_RQST: monitor_handle_request(message); break;
+        case TYPE_RQST: monitor_handle_request(message, c, peer_fd); break;
         case TYPE_SYNC: monitor_handle_sync(message); break;
         default:
             DEBUG_LOG("Received an invalid first message; type = 0x%hx.\n", message->header.type);
     }
 
-    close(client_fd);
+    close(peer_fd);
 }
 
 /* Monitor main loop. Handles all incoming remote read requests. Should never

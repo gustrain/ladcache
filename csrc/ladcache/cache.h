@@ -38,7 +38,7 @@
 
 #define FLAG_NONE (0b00000000)
 #define FLAG_CRCT (0b00001000)  /* This message is a correction. */
-#define FLAG_FLG2 (0b00000100)  /* Unused flag. */
+#define FLAG_UNBL (0b00000100)  /* The request was unable to be fulfilled. */
 #define FLAG_FLG3 (0b00000010)  /* Unused flag. */
 #define FLAG_FLG4 (0b00000001)  /* Unused flag. */
 
@@ -77,7 +77,7 @@ typedef struct file_request {
     UT_hash_handle hh;
 } request_t;
 
-/* File data location for the local cache. */
+/* File data location for the local cache. Manager/monitor context. */
 typedef struct local_location {
     char    path[MAX_PATH_LEN + 1];         /* Index in hash table. */
     char    shm_path[MAX_PATH_LEN + 2];     /* Path to the shm object. */
