@@ -22,6 +22,7 @@
    */
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <pthread.h>
 #include <liburing.h>
 #include "../utils/uthash.h"
@@ -41,14 +42,15 @@
 #define FLAG_NONE (0b00000000)
 #define FLAG_CRCT (0b00001000)  /* This message is a correction. */
 #define FLAG_UNBL (0b00000100)  /* The request was unable to be fulfilled. */
-#define FLAG_FLG3 (0b00000010)  /* Unused flag. */
+#define FLAG_RPLY (0b00000010)  /* Unused flag. */
 #define FLAG_FLG4 (0b00000001)  /* Unused flag. */
 
 /* Network message type. Number of types must not exceed 16. */
 typedef enum {
-    TYPE_RQST,  /* File transfer request. */
-    TYPE_RSPN,  /* File transfer response. */
-    TYPE_SYNC,  /* File ownership synchronization. */
+    TYPE_RQST,  /* File transfer request. Reply expected (TYPE_RSPN). */
+    TYPE_RSPN,  /* File transfer response. No reply. */
+    TYPE_SYNC,  /* File ownership synchronization. No reply. */
+    TYPE_HLLO,  /* Registration (hello) message. Reply optional (TYPE_HLLO). */
     N_MTYPES
 } mtype_t;
 
@@ -91,7 +93,6 @@ typedef struct local_location {
     struct local_location *next;    /* Next entry in the new list. */
     struct local_location *prev;    /* Previous entry in the new list. */
 
-    /* Hash table. */
     UT_hash_handle hh;
 } lloc_t;
 
@@ -108,26 +109,31 @@ typedef struct {
 
 /* General purpose network message struct. Messages follow the format below.
 
+        Hello    ┌────────┐
+        Message  │header  │ (UDP only)
+        (0011)   │7 bytes │
+        ──────►  └────────┘
+
         Sync     ┌────────┬─────────┬────────┬────────┬───┬────────┐
-        Message  │header  │# entries│filepath│filepath│   │filepath│
+        Message  │header  │# entries│filepath│filepath│   │filepath│ (TCP only)
         (0010)   │7 bytes │4 bytes  │n bytes │n bytes │...│n bytes │
         ──────►  └────────┴─────────┴────────┴────────┴───┴────────┘
 
         File     ┌────────┬─────────┐
-        Response │header  │file data│
+        Response │header  │file data│ (TCP only)
         (0001)   │7 bytes │n bytes  │
         ──────►  └────────┴─────────┘
 
         File     ┌────────┬────────┐
-        Request  │header  │filepath│
+        Request  │header  │filepath│ (TCP only)
         (0000)   │7 bytes │n bytes │
         ──────►  └────────┴────────┘
 
                         ┌───────┬──────┬──┬──┬──┬──┬───────┐
-                header  │0xADDA │type  │CR│UN│HL│FL│length │
-                format  │2 bytes│4 bits│CT│BL│LO│G3│4 bytes│
+                header  │0xADDA │type  │CR│UN│RP│FL│length │
+                format  │2 bytes│4 bits│CT│BL│LY│G3│4 bytes│
                         └───────┴──────┴──┴──┴──┴──┴───────┘
-                                         BIT FLAGS
+                                        BIT FLAGS
     
     The first 2 bytes of the header are just an arbitrary magic value. The
     header's length field specifies the number of bytes to follow the header in
@@ -139,8 +145,8 @@ typedef struct {
             uint16_t magic;     /* Magic value (HEADER_MAGIC). */
             mtype_t  type : 4;  /* Message type. */
             bool     crct : 1;  /* Corrective message flag. */
-            bool     unbl : 1;  /* Unable flag (i.e., could not fulfill). */
-            bool     hllo : 1;  /* Hello flag (i.e., register existence no-op). */
+            bool     unbl : 1;  /* Unable (could not fulfill). */
+            bool     rply : 1;  /* Reply (toggle for optional message types). */
             bool     flg3 : 1;  /* Unused. Flag 3. */
             uint32_t length;    /* Number of bytes following header. */
         };
@@ -150,19 +156,17 @@ typedef struct {
 
 /* File data location for a remote cache. */
 typedef struct remote_location {
+    UT_hash_handle hh;
+
     in_addr_t ip;       /* IPv4 address of file owner. */
     char      path[];   /* Filepath. Hash table key. */
-
-    /* Hash table. */
-    UT_hash_handle hh;
 } rloc_t;
 
 /* Peer record. */
 typedef struct peer_record {
     in_addr_t ip;   /* Peer's IPv4 address. */
 
-    struct peer_record *next;   /* Next entry in peers list. */
-    struct peer_record *prev;   /* Previous entry in peers list. */
+    UT_hash_handle hh;
 } peer_t;
 
 /* Remote cache state. */
@@ -194,11 +198,15 @@ typedef struct {
     rcache_t  rcache;   /* Remote cache. */
     int       n_users;  /* Number of users. */
     int       qdepth;   /* Queue depth. */
-    peer_t   *peers;    /* List of peers. */
+    peer_t   *peers;    /* Iterable hash table of peers. */
 
     /* Threading info. */
     pthread_t manager_thread;
     pthread_t monitor_thread;
+    pthread_t registrar_thread;
+
+    /* Synchronization. */
+    pthread_spinlock_t peer_lock;
 
     /* User-shared memory. */
     ustate_t *ustates;  /* N_USERS + 1 user states. +1 for remote requests. */

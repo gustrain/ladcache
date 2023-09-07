@@ -34,7 +34,9 @@
 #include <sys/shm.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -42,8 +44,16 @@
 #define N_HT_LOCKS (16)
 #define PORT_DEFAULT (8080)
 #define MAX_QUEUE_REQUESTS 64
+#define SOCKET_TIMEOUT_S (5)
+#define REGISTER_PERIOD_S (15)
 
 #define MIN(a, b) (a) > (b) ? (a) : (b)
+#define NOT_REACHED()       \
+    do {                    \
+        assert(false);      \
+    } while (false)         
+#define SPINLOCK_MUST_INIT(spinlock)    \
+    assert(!pthread_spinlock_init(spinlock, PTHREAD_PROCESS_SHARED))
 
 /* --------- */
 /*   MISC.   */
@@ -112,12 +122,12 @@ network_connect(in_addr_t ip)
     int peer_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (peer_fd < 0) {
         /* ISSUE: leaking this request. */
-        DEBUG_LOG("Failed to open socket; %s.\n", strerror(errno));
+        DEBUG_LOG("Failed to open socket; %s\n", strerror(errno));
         return -errno;
     }
     if (connect(peer_fd, &peer_addr, sizeof(peer_addr)) < 0) {
         /* ISSUE: leaking this request. */
-        DEBUG_LOG("Failed to connect to peer; %s.\n", strerror(errno));
+        DEBUG_LOG("Failed to connect to peer; %s\n", strerror(errno));
         close(peer_fd);
         return -errno;
     }
@@ -187,7 +197,7 @@ network_send_message(mtype_t type, int flags, void *data, uint32_t size, int fd)
     ssize_t bytes;
     if ((bytes = send(fd, (void *) &header, sizeof(message_t), 0)) != sizeof(message_t)) {
         if (bytes < 0) {
-            DEBUG_LOG("Failed to send header; %s.\n", strerror(errno));
+            DEBUG_LOG("Failed to send header; %s\n", strerror(errno));
             return -errno;
         } else {
             DEBUG_LOG("Failed to send entire header (%ld/%lu bytes sent).\n", bytes, sizeof(message_t));
@@ -198,7 +208,7 @@ network_send_message(mtype_t type, int flags, void *data, uint32_t size, int fd)
     /* Send the data. */
     if ((bytes = send(fd, data, size, 0)) != size) {
         if (bytes < 0) {
-            DEBUG_LOG("Failed to send payload; %s.\n", strerror(errno));
+            DEBUG_LOG("Failed to send payload; %s\n", strerror(errno));
             return -errno;
         } else {
             DEBUG_LOG("Failed to send entire payload (%ld/%u bytes sent).\n", bytes, size);
@@ -209,16 +219,183 @@ network_send_message(mtype_t type, int flags, void *data, uint32_t size, int fd)
     return 0;
 }
 
+/* ----------------------------- */
+/*   REGISTRAR (manager scope)   */
+/* ----------------------------- */
+
+/* Loop to listen for incoming UDP registration datagrams. */
+void *
+registrar_loop(void *args)
+{
+    cache_t *c = (cache_t *) args;
+    int status;
+
+    /* Create listening socket. */
+    int sfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sfd < 0) {
+        DEBUG_LOG("Failed to create registrar listening socket; %s\n", strerror(errno));
+        return (void *) -errno;
+    }
+
+    /* Set socket timeout to SOCKET_TIMEOUT_MS milliseconds. */
+    struct timeval tv = {
+        .tv_sec = SOCKET_TIMEOUT_S,
+        .tv_usec = 0,
+    };
+    if ((status = setsockopt(sfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv))) < 0) {
+        DEBUG_LOG("Failed to set registrar socket timeout; %s", strerror(errno));
+        return (void *) -errno;
+    }
+
+    /* Accept all incoming connections. */
+    socklen_t addr_len = sizeof(struct sockaddr_in);
+    struct sockaddr_in server_addr = {
+        .sin_family = AF_INET,
+        .sin_addr.s_addr = htonl(INADDR_ANY),
+        .sin_port = htons(PORT_DEFAULT)
+    };
+    if ((status = bind(sfd, (const struct sockaddr *) &server_addr, &addr_len)) < 0) {
+        DEBUG_LOG("bind failed; %s\n", strerror(errno));
+        return (void *) -errno;
+    }
+
+    /* Continually await new datagrams, and respond in kind upon reception. */
+    message_t header;
+    struct sockaddr_in client_addr;
+    time_t last_bc = 0, now;
+    while (true) {
+        /* Broadcast a registration message every REGISTRATION_PERIOD_MS
+           milliseconds to ensure no peers are missed by drops, etc. */
+        if ((now = time(NULL)) - last_bc >= REGISTER_PERIOD_S) {
+            DEBUG_LOG("broadcasting hello message");
+            cache_register(c);
+            last_bc = now;
+        }
+
+        /* Receive new datagram. */
+        ssize_t bytes = recvfrom(sfd,
+                                 (void *) &header,
+                                 sizeof(message_t),
+                                 FLAG_NONE,
+                                 &client_addr,
+                                 &addr_len);
+        if (bytes != sizeof(message_t)) {
+            if (bytes < 0) {
+                /* Ignore timeout failures. They're necessary to ensure we can
+                   continue to broadcast our existence periodically. */
+                if (errno != EAGAIN) {
+                    DEBUG_LOG("recvfrom failed; %s\n", strerror(errno));
+                }
+            } else {
+                DEBUG_LOG("received incomplete header (%ld/%lu bytes).\n", bytes, sizeof(message_t));
+            }
+            continue;
+        }
+
+        /* Check validity of message. */
+        if (header.header.magic != HEADER_MAGIC || header.header.type != TYPE_HLLO) {
+            continue;
+        }
+
+        /* Add sender to our directory if it isn't already in it. */
+        peer_t *peer = NULL;
+        HASH_FIND_INT(c->peers, client_addr.sin_addr.s_addr, peer);
+        if (peer == NULL) {
+            peer_t *peer = malloc(sizeof(peer_t));
+            if (peer == NULL) {
+                DEBUG_LOG("unable to allocate peer record.\n");
+                return (void *) -ENOMEM;
+            }
+            peer->ip = client_addr.sin_addr.s_addr;
+            HASH_ADD_INT(c->peers, ip, peer);
+            DEBUG_LOG("added %s to set of peers\n", inet_ntoa(client_addr.sin_addr));
+        }
+
+        /* If reply is required, send a no-reply-required response by re-using
+           the client address and their message. */
+        if (header.header.rply) {
+            header.header.rply = false;
+            if ((bytes = sendto(sfd,
+                                 (void *) &header,
+                                 sizeof(message_t),
+                                 FLAG_NONE,
+                                 &client_addr,
+                                 sizeof(client_addr)) != sizeof(message_t))) {
+                if (bytes < 0) {
+                    DEBUG_LOG("failed to send registration reply; %s\n", strerror(errno));
+                } else {
+                    DEBUG_LOG("failed to send entire registration reply (%ld/%lu bytes).\n", bytes, sizeof(message_t));
+                }
+            }
+        }
+    }
+}
+
+/* Spawn a thread running the registrar loop. */
+int
+registrar_spawn(cache_t *c)
+{
+    return -pthread_create(&c->registrar_thread, NULL, registrar_loop, (void *) c);
+}
+
+
 /* --------------------------- */
 /*   MONITOR (manager scope)   */
 /* --------------------------- */
 
-/* Announce our existence to other members of the distributed cache. */
+/* Announce our existence to other members of the distributed cache. Returns 0
+   on success and -errno on failure. */
 int
 cache_register(cache_t *c)
 {
+    /* Create broadcast socket. */
+    int broadcast_fd = socket(AF_INET, SOCK_DGRAM, 0);
+    int broadcast = 1;
+    int status = setsockopt(broadcast_fd,
+                            SOL_SOCKET,
+                            SO_BROADCAST,
+                            &broadcast,
+                            sizeof(broadcast));
+    if (status < 0) {
+        DEBUG_LOG("failed to configure socket for broadcast; %s\n", strerror(errno));
+        return -errno;
+    }
 
-    /* TODO. */
+    /* Registration "hello" message with reply required. */
+    message_t header = {
+        .header.magic = HEADER_MAGIC,
+        .header.type = TYPE_HLLO,
+        .header.crct = false,
+        .header.unbl = false,
+        .header.rply = true,
+        .header.flg3 = false,
+        .header.length = 0
+    };
+
+    /* Broadcast the message. */
+    struct sockaddr_in addr = {
+        .sin_family = AF_INET,
+        .sin_addr.s_addr = htonl(INADDR_BROADCAST),
+        .sin_port = htons(PORT_DEFAULT)
+    };
+    ssize_t bytes = sendto(broadcast_fd,
+                           (void *) &header,
+                           sizeof(message_t),
+                           FLAG_NONE,
+                           &addr,
+                           sizeof(addr));
+    if (bytes != sizeof(message_t)) {
+        if (bytes < 0) {
+            DEBUG_LOG("failed to broadcast hello; %s\n", strerror(errno));
+            return -errno;
+        } else {
+            DEBUG_LOG("failed to broadcast entire message (%ld/%lu bytes).\n", bytes, sizeof(message_t));
+            return -EBADMSG;
+        }
+    }
+
+    close(broadcast_fd);
+    return 0;
 }
 
 /* Send a message to every known peer with our list of newly-cached files.
@@ -259,8 +436,9 @@ cache_sync(cache_t *c)
 
 
     /* Send the message to everyone we know. */
-    peer_t *peer = c->peers;
-    do {
+    pthread_spin_lock(&c->peer_lock);
+    peer_t *peer, *tmp;
+    HASH_ITER(hh, c->peers, peer, tmp) {
         /* Open the socket. */
         int peer_fd = network_connect(peer->ip);
         if (peer_fd < 0) {
@@ -281,7 +459,8 @@ cache_sync(cache_t *c)
             return status;
         }
         close(peer_fd);
-    } while ((peer = peer->next) != NULL);
+    };
+    pthread_spin_unlock(&c->peer_lock);
 
     free(payload);
     return 0;
@@ -389,43 +568,45 @@ monitor_handle_connection(void *args)
 
 /* Monitor main loop. Handles all incoming remote read requests. Should never
    return when running correctly. On failure returns negative errno value. */
-int
-monitor_loop(cache_t *c)
+void *
+monitor_loop(void *args)
 {
-    
+    cache_t *c = (cache_t *) args;
+
     /* Open the listening socket. */
     int lfd = socket(AF_INET, SOCK_STREAM, 0);
     if (lfd < 0) {
-        return -errno;
+        return (void *) -errno;
     }
 
-    /* Allow address to be re-used. */
+    /* Allow address to be re-used (needed?) */
     int opt = 1;
-    if (setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) { /* Needed? */
-        DEBUG_LOG("setsockopt failed\n");
-        return -errno;
+    if (setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
+        DEBUG_LOG("setsockopt failed; %s\n", strerror(errno));
+        return (void *) -errno;
     }
 
     /* Bind to PORT_DEFAULT. */
-    struct sockaddr_in addr;
-    int len = sizeof(addr);
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = INADDR_ANY;
-    addr.sin_port = htons(PORT_DEFAULT);
-    if (bind(lfd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        DEBUG_LOG("bind failed\n");
-        return -errno;
+    struct sockaddr_in addr = {
+        .sin_family = AF_INET,
+        .sin_addr.s_addr = htonl(INADDR_ANY),
+        .sin_port = htons(PORT_DEFAULT)
+    };
+    socklen_t addr_len = sizeof(addr);
+    if (bind(lfd, (struct sockaddr *)&addr, &addr_len) < 0) {
+        DEBUG_LOG("bind failed; %s\n", strerror(errno));
+        return (void *) -errno;
     }
 
     /* Start listening. */
     if (listen(lfd, MAX_QUEUE_REQUESTS)) {
-        DEBUG_LOG("listen failed\n");
-        return -errno;
+        DEBUG_LOG("listen failed; %s\n", strerror(errno));
+        return (void *) -errno;
     }
 
     /* Handle all incoming connections. */
     while (true) {
-        int cfd = accept(lfd, (struct sockaddr *) &addr, (socklen_t *) &len);
+        int cfd = accept(lfd, (struct sockaddr *) &addr, (socklen_t *) &addr_len);
         if (cfd >= 0) {
             /* This thread will terminate gracefully on its own and we don't
                need to track it. */
@@ -434,9 +615,10 @@ monitor_loop(cache_t *c)
         }
     }
 
-    /* Not reached. */
+    NOT_REACHED();
     return 0;
 }
+
 
 /* Spawns a new thread running the monitor loop. Returns 0 on success, -errno on
    failure. */
@@ -596,7 +778,7 @@ cache_remote_load(void *args)
                                       strlen(request->path) + 1,
                                       peer_fd);
     if (status < 0) {
-        DEBUG_LOG("Failed to send message; %s.\n", strerror(-status));
+        DEBUG_LOG("Failed to send message; %s\n", strerror(-status));
         close(peer_fd);
         return status;
     }
@@ -612,7 +794,7 @@ cache_remote_load(void *args)
 
     /* Make sure we got a sensible response. */
     if (response->header.type != TYPE_RSPN) {
-        DEBUG_LOG("Received an incorrect message type (type = 0x%hx)", response->header.type);
+        DEBUG_LOG("Received an incorrect message type (type = 0x%hx).", response->header.type);
         return;
     }
 
@@ -794,7 +976,7 @@ manager_check_done(cache_t *c, ustate_t *ustate)
 }
 
 /* Manager main loop. Handles all pending requests. */
-void
+void *
 manager_loop(cache_t *c)
 {
     ustate_t *ustate;
@@ -827,6 +1009,9 @@ manager_loop(cache_t *c)
             idle_iters++;
         }
     }
+
+    NOT_REACHED();
+    return NULL;
 }
 
 /* Spawns a new thread running the manager loop. Returns 0 on success, -errno on
@@ -969,9 +1154,9 @@ cache_init(cache_t *c,
         }
 
         /* Initialize the locks. */
-        assert(!pthread_spinlock_init(&ustate->free_lock, PTHREAD_PROCESS_SHARED));
-        assert(!pthread_spinlock_init(&ustate->ready_lock, PTHREAD_PROCESS_SHARED));
-        assert(!pthread_spinlock_init(&ustate->done_lock, PTHREAD_PROCESS_SHARED));
+        SPINLOCK_MUST_INIT(&ustate->free_lock);
+        SPINLOCK_MUST_INIT(&ustate->ready_lock);
+        SPINLOCK_MUST_INIT(&ustate->done_lock);
     }
 
     /* Set up the local cache. */
@@ -984,12 +1169,13 @@ cache_init(cache_t *c,
 
     /* Set up the remote cache. */
     c->rcache.ht = NULL;
-    assert(!pthread_spinlock_init(&c->rcache.ht_lock));
+    SPINLOCK_MUST_INIT(&c->rcache.ht_lock);
 
     /* Set up the total cache. */
     c->n_users = n_users;
     c->qdepth = queue_depth;
     c->peers = NULL;
+    SPINLOCK_MUST_INIT(&c->peer_lock);
 
     return 0;
 }
