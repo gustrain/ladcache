@@ -26,6 +26,7 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <getopt.h>
+#include <assert.h>
 #include <errno.h>
 
 #define CHECK_ARG_MUTEX(mode)                                                  \
@@ -54,7 +55,7 @@ enum test_mode {
 int
 test_interactive()
 {
-
+   return -ENOSYS;
 }
 
 /* Directory test mode. Loads all files in the directory at PATH. Returns 0 on
@@ -62,7 +63,7 @@ test_interactive()
 int
 test_directory(char *path)
 {
-
+   return -ENOSYS;
 }
 
 int
@@ -73,17 +74,17 @@ main(int argc, char **argv)
    char *path;
 
    /* Parse arguments. */
-   while ((opt = getopt(argc, argv, ":d:i"))) {
+   while ((opt = getopt(argc, argv, ":d:i")) != -1) {
       switch (opt) {
          case 'd': /* Directory mode. */
             CHECK_ARG_MUTEX(mode);
-            printf("directory mode...");
+            printf("directory mode...\n");
             mode = MODE_DIRECTORY;
             path = optarg;
             break;
          case 'i': /* Interactive mode. */
             CHECK_ARG_MUTEX(mode);
-            printf("interactive mode...");
+            printf("interactive mode...\n");
             mode = MODE_INTERACTIVE;
             break;
          case '?':

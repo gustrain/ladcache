@@ -25,6 +25,7 @@
 #include <stdbool.h>
 #include <pthread.h>
 #include <liburing.h>
+#include <netinet/in.h>
 #include "../utils/uthash.h"
 
 #ifndef __CACHE_H__

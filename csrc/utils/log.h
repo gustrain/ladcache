@@ -24,6 +24,8 @@
 #ifndef __UTILS_LOG_H_
 #define __UTILS_LOG_H_
 
+#include <unistd.h>
+
 #define DEBUG 0
 #define DEBUG_LOG(fmt, ...) \
     do { if (DEBUG) fprintf(stderr, "(pid %d) [%8s:%-5d] " fmt, getpid(), __FILE__, \
