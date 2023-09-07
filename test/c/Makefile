@@ -20,3 +20,16 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+CC     = gcc
+CFLAGS = -Wall -lpthread -luring -lrt -g
+DEPS   = ../../**.h
+OBJ    = ../../**.o
+
+%.o: %.c $(DEPS)
+	$(CC) -c -o $@ $< $(CFLAGS)
+
+async: $(OBJ)
+	$(CC) -o $@ $^ $(CFLAGS)
+
+clean:
+	rm -f test_ladcache $(OBJ)

@@ -51,7 +51,7 @@
 #define NOT_REACHED()       \
     do {                    \
         assert(false);      \
-    } while (false)         
+    } while (0)
 #define SPINLOCK_MUST_INIT(spinlock)    \
     assert(!pthread_spinlock_init(spinlock, PTHREAD_PROCESS_SHARED))
 
