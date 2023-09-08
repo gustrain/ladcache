@@ -971,13 +971,14 @@ void *
 manager_loop(void *args)
 {
     cache_t *c = (cache_t *) args;
-    ustate_t *ustate;
     size_t prev_length;
     size_t idle_iters = 0;
+    uint64_t i = 0;
 
     /* Loop round-robin through the user ustates and check for pending and
        completed requests that require status queue updates. */
-    for (unsigned i = 0; true; ustate = &c->ustates[i++ % c->n_users]) {
+    while (true) {
+        ustate_t *ustate = &c->ustates[i++ % c->n_users];
         /* Check if we need to sync our newly cached files with peers. We do
            this when we've either reached the submission threshold, or when
            we've looped many times without caching anything new. */
