@@ -550,7 +550,7 @@ registrar_loop(void *args)
         .tv_usec = 0,
     };
     if ((status = setsockopt(sfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv))) < 0) {
-        DEBUG_LOG("Failed to set registrar socket timeout; %s", strerror(errno));
+        DEBUG_LOG("Failed to set registrar socket timeout; %s\n", strerror(errno));
         return NULL;
     }
 
@@ -574,7 +574,7 @@ registrar_loop(void *args)
         /* Broadcast a registration message every REGISTRATION_PERIOD_MS
            milliseconds to ensure no peers are missed by drops, etc. */
         if ((now = time(NULL)) - last_bc >= REGISTER_PERIOD_S) {
-            DEBUG_LOG("broadcasting hello message");
+            DEBUG_LOG("broadcasting hello message\n");
             cache_register(c);
             last_bc = now;
         }
@@ -708,7 +708,7 @@ cache_local_load(lcache_t *lc, request_t *request)
     lloc_t *loc = NULL;
     HASH_FIND_STR(lc->ht, request->path, loc);
     if (loc == NULL) {
-        DEBUG_LOG("attempted to load uncached file; %s", request->path);
+        DEBUG_LOG("attempted to load uncached file; %s\n", request->path);
         return -ENODATA;
     }
 
@@ -795,7 +795,7 @@ cache_remote_load(void *args)
     /* Make sure we got a sensible response. */
     if (response->header.type != TYPE_RSPN) {
         /* ISSUE: leaking this request. */
-        DEBUG_LOG("Received an incorrect message type (type = 0x%hx).", response->header.type);
+        DEBUG_LOG("Received an incorrect message type (type = 0x%hx)\n", response->header.type);
         free(response);
         return NULL;
     }
