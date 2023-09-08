@@ -103,9 +103,7 @@ test_interactive(cache_t *c)
 
       /* Retrieve the loaded file. */
       request_t *out;
-      if ((status = cache_get_reap(c->ustates, &out)) < 0) {
-         DEBUG_LOG("cache_get_reap failed; %s\n", strerror(-status));
-      }
+      cache_get_reap_wait(c->ustates, &out);
 
       struct timespec time_end;
       clock_gettime(CLOCK_REALTIME, &time_end);

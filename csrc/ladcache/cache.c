@@ -1068,11 +1068,19 @@ cache_get_reap(ustate_t *user, request_t **out)
     out = NULL;
     QUEUE_POP_SAFE(user->done, &user->done_lock, next, prev, *out);
     if (out == NULL) {
-        DEBUG_LOG("&user->done is empty\n");
         return -EAGAIN; /* Try again once request has been fulfilled. */
     }
 
     return 0;
+}
+
+/* Spin on cache_get_reap until an entry becomes ready.
+
+   TODO. Find a better method that doesn't require spinning. */
+void
+cache_get_reap_wait(ustate_t *user, request_t **out)
+{
+    while (cache_get_reap(user, out) == EAGAIN);
 }
 
 
