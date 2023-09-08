@@ -222,6 +222,6 @@ int cache_init(cache_t *c, size_t capacity, unsigned queue_depth, int max_unsync
 int cache_start(cache_t *c);
 int cache_get_submit(ustate_t *user, char *path);
 int cache_get_reap(ustate_t *user, request_t **out);
-void cache_get_reap_wait(ustate_t *user, request_t **out)
+void cache_get_reap_wait(ustate_t *user, request_t **out);
 
 #endif
