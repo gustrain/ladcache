@@ -43,7 +43,7 @@
 
 /* General-purpose pop method that acquires a spinlock while working.
       - head: head of queue struct.
-      - lock: name of "lock" field.
+      - lock: pointer to spin lock.
       - next: name of "next" field.
       - prev: name of "prev" field.
       - out: queue struct pointer, pointed to popped elem.
@@ -77,7 +77,7 @@
 
 /* General-purpose push method that acquires a spinlock while working.
       - head: head of queue struct.
-      - lock: name of "lock" field.
+      - lock: pointer to spin lock.
       - next: name of "next" field.
       - prev: name of "prev" field.
       - elem: pointer to queue struct to insert.
