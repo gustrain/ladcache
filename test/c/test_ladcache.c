@@ -104,7 +104,7 @@ test_interactive(cache_t *c)
       /* Retrieve the loaded file. */
       request_t *out;
       if ((status = cache_get_reap(c->ustates, &out)) < 0) {
-         DEBUG_LOG("cache_get_reap failed; %s", strerror(-status));
+         DEBUG_LOG("cache_get_reap failed; %s\n", strerror(-status));
       }
 
       struct timespec time_end;
