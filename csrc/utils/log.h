@@ -26,7 +26,7 @@
 
 #include <unistd.h>
 
-#define DEBUG 0
+#define DEBUG 1
 #define DEBUG_LOG(fmt, ...) \
     do { if (DEBUG) fprintf(stderr, "(pid %d) [%8s:%-5d] " fmt, getpid(), __FILE__, \
                             __LINE__, ## __VA_ARGS__); } while (0)

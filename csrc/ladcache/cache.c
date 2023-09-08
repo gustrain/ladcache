@@ -869,7 +869,10 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
     request_t *pending;
 
     /* Check if there's a request waiting in the ready queue. */
-    QUEUE_POP_SAFE(ustate->ready, &ustate->ready_lock, next, prev, pending);
+    pthread_spin_lock(&ustate->ready_lock);
+    // QUEUE_POP_SAFE(ustate->ready, &ustate->ready_lock, next, prev, pending);
+    QUEUE_POP(ustate->ready, next, prev, pending);
+    pthread_spin_unlock(&ustate->ready_lock);
     if (pending == NULL) {
         return 0;
     }
@@ -1130,7 +1133,11 @@ cache_init(cache_t *c,
     }
 
     /* Initialize user states. */
+    c->n_users = n_users;
+    c->qdepth = queue_depth;
+    DEBUG_LOG("initializing %d ustates...\n", c->n_users);
     for (int i = 0; i < c->n_users; i++) {
+        DEBUG_LOG("initializing ustate %d\n", i);
         ustate_t *ustate = &c->ustates[i];
 
         /* Allocate requests (queue entries). */
@@ -1184,8 +1191,6 @@ cache_init(cache_t *c,
     SPINLOCK_MUST_INIT(&c->rcache.ht_lock);
 
     /* Set up the total cache. */
-    c->n_users = n_users;
-    c->qdepth = queue_depth;
     c->peers = NULL;
     SPINLOCK_MUST_INIT(&c->peer_lock);
 
