@@ -333,6 +333,7 @@ cache_sync(cache_t *c)
         }
 
         /* Send the message. */
+        DEBUG_LOG("Sending SYNC to %s with %u files.\n", inet_ntoa((struct in_addr) {.s_addr = peer->ip}), n_entries);
         int status = network_send_message(TYPE_SYNC,
                                           FLAG_NONE,
                                           (void *) payload,
@@ -356,17 +357,28 @@ cache_sync(cache_t *c)
 int
 monitor_handle_request(message_t *message, cache_t *c, int fd)
 {
+    struct sockaddr_in addr;
+    socklen_t addr_size = sizeof(addr);
+    if (getpeername(fd, (struct sockaddr *) &addr, &addr_size) < 0) {
+        DEBUG_LOG("getpeername failed; %s\n", strerror(-errno));
+        return -errno;
+    }
+
     /* TODO. Verify the filepath is the correct length (i.e., \0 terminated). */
+    char *path = (char *) message->data;
+    DEBUG_LOG("Received request from %s for %s.\n", inet_ntoa(addr.sin_addr), message->data);
 
     /* Try to retrieve the requested file from our cache. If uncached, reply
        that we are unable to fulfill their request. */
     lloc_t *loc;
     HASH_FIND_STR(c->lcache.ht, (char *) message->data, loc);
     if (loc == NULL) {
+        DEBUG_LOG("File %s is not cached.\n", message->data);
         return network_send_message(TYPE_RSPN, FLAG_UNBL, NULL, 0, fd);
     }
 
     /* Otherwise, reply with our cached file data. */
+    DEBUG_LOG("Sending %s %s (%u bytes).\n", inet_ntoa(addr.sin_addr), path, message->header.length);
     return network_send_message(TYPE_RSPN, FLAG_NONE, loc->data, loc->size, fd);
 }
 
@@ -379,8 +391,7 @@ monitor_handle_sync(message_t *message, cache_t *c, int fd)
     /* Figure out who we're talking to. */
     struct sockaddr_in addr;
     socklen_t addr_size = sizeof(addr);
-    int status = getpeername(fd, (struct sockaddr *) &addr, &addr_size);
-    if (status < 0) {
+    if (getpeername(fd, (struct sockaddr *) &addr, &addr_size) < 0) {
         return -errno;
     }
     in_addr_t ip = addr.sin_addr.s_addr;
@@ -413,6 +424,7 @@ monitor_handle_sync(message_t *message, cache_t *c, int fd)
         /* Move to the next filepath. */
         filepath += strlen(filepath) + 1;
     }
+    DEBUG_LOG("Received SYNC from %s with %u files.\n", inet_ntoa(addr.sin_addr), n_entries);
 
     return 0;
 }
@@ -574,7 +586,6 @@ registrar_loop(void *args)
         /* Broadcast a registration message every REGISTRATION_PERIOD_MS
            milliseconds to ensure no peers are missed by drops, etc. */
         if ((now = time(NULL)) - last_bc >= REGISTER_PERIOD_S) {
-            DEBUG_LOG("broadcasting hello message\n");
             cache_register(c);
             last_bc = now;
         }
@@ -771,6 +782,7 @@ cache_remote_load(void *args)
     }
 
     /* Send them a request for the file. */
+    DEBUG_LOG("Requesting file %s from %s.\n", request->path, inet_ntoa((struct in_addr) {.s_addr = loc->ip}));
     int status = network_send_message(TYPE_RQST,
                                       FLAG_NONE,
                                       request->path,
@@ -803,7 +815,7 @@ cache_remote_load(void *args)
     /* Was the peer unable to fulfill the request? */
     if (response->header.unbl) {
         /* ISSUE: leaking this request. */
-        DEBUG_LOG("Peer unable to fulfill request for %s.\n", request->path);
+        DEBUG_LOG("%s unable to fulfill request for %s.\n", inet_ntoa((struct in_addr) {.s_addr = loc->ip}), request->path);
         free(response);
         return NULL;
     }
@@ -816,8 +828,9 @@ cache_remote_load(void *args)
     shmify(request->path, request->shm_path, MAX_PATH_LEN + 1, MAX_SHM_PATH_LEN + 1);
     request->_lfd_shm = shm_alloc(request->shm_path, &request->_ldata, request->size);
     memcpy(request->_ldata, response->data, request->size);
+    
+    DEBUG_LOG("Received %s (%u bytes) from %s.\n", request->path, response->header.length, inet_ntoa((struct in_addr) {.s_addr = loc->ip}));
     free(response);
-
     return NULL;
 }
 
@@ -830,6 +843,8 @@ cache_remote_load(void *args)
 int
 manager_submit_io(ustate_t *ustate, request_t *r)
 {
+    DEBUG_LOG("Loading %s from the local cache.\n", r->path);
+
     /* Open the file. */
     r->_lfd_file = open(r->path, O_RDONLY | __O_DIRECT);
     if (r->_lfd_file < 0) {
