@@ -967,6 +967,7 @@ manager_check_done(cache_t *c, ustate_t *ustate)
 
             /* Add to list of filenames to be synchronized. */
             QUEUE_PUSH(c->lcache.unsynced, next, prev, loc);
+
             c->lcache.n_unsynced++;
         }
 
@@ -992,7 +993,8 @@ manager_loop(void *args)
         ustate_t *ustate = &c->ustates[i++ % c->n_users];
         /* Check if we need to sync our newly cached files with peers. We do
            this when we've either reached the submission threshold, or when
-           we've looped many times without caching anything new. */
+           we've looped many times without caching anything new. A threshold of
+           zero indicates no limit. */
         if ((c->lcache.n_unsynced >= c->lcache.threshold && c->lcache.threshold > 0) ||
             (idle_iters > MAX_IDLE_ITERS && c->lcache.n_unsynced > 0)) {
             DEBUG_LOG("Syncing %lu filepaths.\n", c->lcache.n_unsynced);
@@ -1010,6 +1012,9 @@ manager_loop(void *args)
             idle_iters = 0;
         } else {
             idle_iters++;
+            if (idle_iters % 1024 == 0) {
+                DEBUG_LOG("idle_idles = %lu.\n", idle_iters);
+            }
         }
     }
 
