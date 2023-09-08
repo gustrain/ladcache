@@ -34,8 +34,6 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#define _GNU_SOURCE
-
 
 /* Allocate shared memory using an anonymous mmap. If this process forks, and
    all "shared" state was allocated using this function, everything will behave

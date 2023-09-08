@@ -100,17 +100,21 @@ test_interactive(cache_t *c)
       /* Submit the request. */
       if ((status = cache_get_submit(c->ustates, input)) < 0) {
          DEBUG_LOG("cache_get_submit failed; %s\n", strerror(-status));
+         continue;
       }
 
       /* Retrieve the loaded file. */
       request_t *out;
-      cache_get_reap_wait(c->ustates, &out);
+      if ((status = cache_get_reap_wait(c->ustates, &out))) {
+         DEBUG_LOG("cache_get_reap_wait failed; %s\n", strerror(-status));
+         continue;
+      }
 
       struct timespec time_end;
       clock_gettime(CLOCK_REALTIME, &time_end);
-      printf("done (%lu ns) (%lu bytes)\n", (time_end.tv_nsec - time_start.tv_nsec), out->size);
+      printf("done (%lu ns)\n", (time_end.tv_nsec - time_start.tv_nsec));
 
-      QUEUE_PUSH_SAFE(c->ustates->free, &c->ustates->free_lock, next, prev, out);
+      cache_release(c->ustates, out);
    }
 
    return 0;

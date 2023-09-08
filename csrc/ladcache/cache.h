@@ -183,6 +183,7 @@ typedef struct {
     request_t *free;                /* Unused request_t structs. */
     request_t *ready;               /* Ready requests waiting to be executed. */
     request_t *done;                /* Fulfilled requests. */
+    request_t *cleanup;             /* Waiting for backend resource cleanup. */
 
     /* Asynchronous IO. */
     struct io_uring ring;
@@ -191,6 +192,7 @@ typedef struct {
     pthread_spinlock_t free_lock;
     pthread_spinlock_t ready_lock;
     pthread_spinlock_t done_lock;
+    pthread_spinlock_t cleanup_lock;
 } ustate_t;
 
 /* Complete/total cache state. */
@@ -222,6 +224,7 @@ int cache_init(cache_t *c, size_t capacity, unsigned queue_depth, int max_unsync
 int cache_start(cache_t *c);
 int cache_get_submit(ustate_t *user, char *path);
 int cache_get_reap(ustate_t *user, request_t **out);
-void cache_get_reap_wait(ustate_t *user, request_t **out);
+int cache_get_reap_wait(ustate_t *user, request_t **out);
+void cache_release(ustate_t *user, request_t *request);
 
 #endif
