@@ -31,7 +31,7 @@
 #ifndef __CACHE_H__
 #define __CACHE_H__
 
-#define MAX_IDLE_ITERS 64 * 1024
+#define MAX_IDLE_ITERS 64 * 1024 * 1024
 
 #define MAX_PATH_LEN 128                    /* Not including \0. */
 #define MAX_SHM_PATH_LEN MAX_PATH_LEN + 1   /* Not including \0. */
