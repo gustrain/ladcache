@@ -866,13 +866,9 @@ manager_submit_io(ustate_t *ustate, request_t *r)
 int
 manager_check_ready(cache_t *c, ustate_t *ustate)
 {
-    request_t *pending;
-
     /* Check if there's a request waiting in the ready queue. */
-    pthread_spin_lock(&ustate->ready_lock);
-    // QUEUE_POP_SAFE(ustate->ready, &ustate->ready_lock, next, prev, pending);
-    QUEUE_POP(ustate->ready, next, prev, pending);
-    pthread_spin_unlock(&ustate->ready_lock);
+    request_t *pending = NULL;
+    QUEUE_POP_SAFE(ustate->ready, &ustate->ready_lock, next, prev, pending);
     if (pending == NULL) {
         return 0;
     }
