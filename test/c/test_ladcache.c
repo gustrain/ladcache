@@ -22,12 +22,22 @@
    */
 
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <unistd.h>
 #include <getopt.h>
 #include <assert.h>
 #include <errno.h>
+#include <time.h>
+
+#include "../../csrc/ladcache/cache.h"
+#include "../../csrc/utils/log.h"
+
+#define DEFAULT_MAX_UNSYNCED 2
+#define DEFAULT_CAPACITY 64 * 1024 * 1024
+#define DEFAULT_QDEPTH 64
+#define DEFAULT_USERS 1
 
 #define CHECK_ARG_MUTEX(mode)                                                  \
    do {                                                                        \
@@ -50,18 +60,65 @@ enum test_mode {
    N_MODES
 };
 
+/* Just like getline(), but reads only from stdin and displays a prompt. Returns
+   bytes read. */
+int
+get_input(char *buf)
+{
+   printf(" > ");
+   size_t max_len = MAX_PATH_LEN;
+   return getline(&buf, &max_len, stdin);
+}
+
 /* Interactive test mode. Allows user to specify files to be loaded. Returns 0
    on success, -errno on failure. */
 int
-test_interactive()
+test_interactive(cache_t *c)
 {
-   return -ENOSYS;
+   int status;
+   char *input = malloc(MAX_PATH_LEN + 1);
+   if (input == NULL) {
+      return -ENOMEM;
+   }
+
+   /* Repeatedly get and load a filepath. */
+   bool running = true;
+   while (running) {
+      ssize_t n = get_input(input);
+      if (n == 1) {
+         continue;
+      }
+
+      /* Remove the newline. */
+      input[n - 1] = '\0';
+
+      printf("loading %s...\n", input);
+      struct timespec time_start;
+      clock_gettime(CLOCK_REALTIME, &time_start);
+
+      /* Submit the request. */
+      if ((status = cache_get_submit(c->ustates, input)) < 0) {
+         DEBUG_LOG("cache_get_submit failed; %s\n", strerror(-status));
+      }
+
+      /* Retrieve the loaded file. */
+      request_t *out;
+      if ((status = cache_get_reap(c->ustates, &out)) < 0) {
+         DEBUG_LOG("cache_get_reap failed; %s", strerror(-status));
+      }
+
+      struct timespec time_end;
+      clock_gettime(CLOCK_REALTIME, &time_end);
+      printf("done (%lu ns) (%lu bytes)\n", (time_end.tv_nsec - time_start.tv_nsec), 0ul);
+   }
+
+   return 0;
 }
 
 /* Directory test mode. Loads all files in the directory at PATH. Returns 0 on
    sucess, -errno on failure. */
 int
-test_directory(char *path)
+test_directory(cache_t *c, char *path)
 {
    return -ENOSYS;
 }
@@ -72,9 +129,10 @@ main(int argc, char **argv)
    int opt;
    enum test_mode mode = MODE_NONE;
    char *path;
+   int status;
 
    /* Parse arguments. */
-   while ((opt = getopt(argc, argv, ":d:i")) != -1) {
+   while ((opt = getopt(argc, argv, ":id:c:")) != -1) {
       switch (opt) {
          case 'd': /* Directory mode. */
             CHECK_ARG_MUTEX(mode);
@@ -93,12 +151,31 @@ main(int argc, char **argv)
       }
    }
 
+   /* Create the cache. */
+   cache_t *cache = cache_new();
+   if ((status = cache_init(cache, DEFAULT_CAPACITY, DEFAULT_QDEPTH, DEFAULT_MAX_UNSYNCED, DEFAULT_USERS)) < 0) {
+      DEBUG_LOG("cache_init failed; %s\n", strerror(-status));
+      return -status;
+   }
+
+   /* Start the cache threads. */
+   if ((status = cache_start(cache)) < 0) {
+      DEBUG_LOG("cache_start failed; %s\n", strerror(-status));
+      return -status;
+   }
+
    /* Select test based on input. */
    switch (mode) {
       case MODE_INTERACTIVE:
-         return -test_interactive();
+         if ((status = test_interactive(cache)) < 0) {
+            DEBUG_LOG("test_interactive failed; %s\n", strerror(-status));
+            return -status;
+         }
       case MODE_DIRECTORY:
-         return -test_directory(path);
+         if ((status = test_directory(cache, path)) < 0) {
+            DEBUG_LOG("test_directory failed; %s\n", strerror(-status));
+            return -status;
+         }
       default:
          printf("error: invalid test mode\n");
          return EINVAL;

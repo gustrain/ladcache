@@ -30,6 +30,7 @@
 #include <pthread.h>
 #include <errno.h>
 #include <assert.h>
+#include <signal.h>
 #include <sys/socket.h>
 #include <sys/shm.h>
 #include <sys/mman.h>
@@ -1014,6 +1015,28 @@ manager_spawn(cache_t *c)
 /*   GENERIC INTERFACE (user scope)   */
 /* ---------------------------------- */
 
+/* Spawn the manager, the monitor, and the registrar. Returns 0 on success,
+   -errno on failure. */
+int
+cache_start(cache_t *c)
+{
+    int status;
+    if ((status = manager_spawn(c)) < 0) {
+        return status;
+    }
+    if ((status = monitor_spawn(c)) < 0) {
+        kill(c->manager_thread, SIGKILL);
+        return status;
+    }
+    if ((status = registrar_spawn(c)) < 0) {
+        kill(c->manager_thread, SIGKILL);
+        kill(c->monitor_thread, SIGKILL);
+        return status;
+    }
+
+    return 0;
+}
+
 /* Submit a request for the file at PATH to be loaded for USER. Returns 0 on
    success, -errno on failure. */
 int
@@ -1039,11 +1062,11 @@ cache_get_submit(ustate_t *user, char *path)
 /* Reap a completed request for USER. Points OUT to a completed request. Returns
    0 on sucess, -errno on failure. */
 int
-cache_get_reap(ustate_t *user, request_t *out)
+cache_get_reap(ustate_t *user, request_t **out)
 {
     /* Try to get a completed request. */
     out = NULL;
-    QUEUE_POP_SAFE(user->done, &user->done_lock, next, prev, out);
+    QUEUE_POP_SAFE(user->done, &user->done_lock, next, prev, *out);
     if (out == NULL) {
         DEBUG_LOG("&user->done is empty\n");
         return -EAGAIN; /* Try again once request has been fulfilled. */

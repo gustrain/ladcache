@@ -31,12 +31,12 @@
 #ifndef __CACHE_H__
 #define __CACHE_H__
 
-#define MAX_IDLE_ITERS (64 * 1024)
+#define MAX_IDLE_ITERS 64 * 1024
 
-#define MAX_PATH_LEN (128)                      /* Not including \0. */
-#define MAX_SHM_PATH_LEN (MAX_PATH_LEN + 1)     /* Not including \0. */
-#define MAX_NAME_LEN (128)                      /* Not including \0. */
-#define MAX_SYNC_SIZE (16 * 1024 * (MAX_PATH_LEN + 1))
+#define MAX_PATH_LEN 128                    /* Not including \0. */
+#define MAX_SHM_PATH_LEN MAX_PATH_LEN + 1   /* Not including \0. */
+#define MAX_NAME_LEN 128                    /* Not including \0. */
+#define MAX_SYNC_SIZE 16 * 1024 * (MAX_PATH_LEN + 1)
 
 #define HEADER_MAGIC (0xADDA)
 
@@ -219,7 +219,8 @@ void cache_destroy(cache_t *c);
 int cache_init(cache_t *c, size_t capacity, unsigned queue_depth, int max_unsynced, int n_users);
 
 /* Interface methods. */
+int cache_start(cache_t *c);
 int cache_get_submit(ustate_t *user, char *path);
-int cache_get_reap(ustate_t *user, request_t *out);
+int cache_get_reap(ustate_t *user, request_t **out);
 
 #endif

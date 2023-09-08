@@ -21,6 +21,8 @@
    SOFTWARE.
    */
 
+#include <pthread.h>
+
 /* General-purpose pop method.
       - head: head of queue struct.
       - next: name of "next" field.
@@ -29,13 +31,13 @@
  */
 #define QUEUE_POP(head, next, prev, out)                                      \
       do {                                                                    \
-            if (head == NULL) {                                               \
+            if ((head) == NULL) {                                             \
                   continue;                                                   \
             }                                                                 \
-            out = head;                                                       \
-            head = head->next;                                                \
-            if (head != NULL) {                                               \
-                  head->prev = NULL;                                          \
+            (out) = (head);                                                   \
+            (head) = (head)->next;                                            \
+            if ((head) != NULL) {                                             \
+                  (head)->prev = NULL;                                        \
             }                                                                 \
       } while (0)
 
@@ -61,16 +63,16 @@
  */
 #define QUEUE_PUSH(head, next, prev, elem)                                    \
       do {                                                                    \
-            if (head == NULL) {                                               \
-                  head = elem;                                                \
-                  elem->prev = NULL;                                          \
-                  elem->next = NULL;                                          \
+            if ((head) == NULL) {                                             \
+                  (head) = (elem);                                            \
+                  (elem)->prev = NULL;                                        \
+                  (elem)->next = NULL;                                        \
                   continue;                                                   \
             }                                                                 \
-            head->prev = elem;                                                \
-            elem->next = head->next;                                          \
-            elem->prev = NULL;                                                \
-            head = elem;                                                      \
+            (head)->prev = (elem);                                            \
+            (elem)->next = (head)->next;                                      \
+            (elem)->prev = NULL;                                              \
+            (head) = (elem);                                                  \
       } while (0)
 
 /* General-purpose push method that acquires a spinlock while working.
