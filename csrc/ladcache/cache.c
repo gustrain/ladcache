@@ -876,8 +876,35 @@ manager_submit_io(ustate_t *ustate, request_t *r)
     return 0;
 }
 
-/* Check whether USTATE has a pending request, and execute it if it does.
-   Returns 0 on sucess, -errno on failure. */
+/* Check whether USTATE has any backend resources to be cleaned up. Returns 0 on
+   success, -errno on failure. */
+void
+manager_check_cleanup(cache_t *c, ustate_t *ustate)
+{
+    /* Check if there's anything in the queue. */
+    request_t *to_clean = NULL;
+    QUEUE_POP_SAFE(ustate->cleanup, &ustate->cleanup_lock, next, prev, to_clean);
+    if (to_clean == NULL) {
+        return;
+    }
+
+    /* Check if it should be cleaned up. */
+    if (!to_clean->_skip_clean) {
+        munmap(to_clean->_ldata, to_clean->size);
+        close(to_clean->_lfd_shm);
+        close(to_clean->_lfd_file);
+        shm_unlink(to_clean->shm_path);
+    }
+
+    /* Wipe it. */
+    memset(to_clean, 0, sizeof(request_t));
+
+    /* Move it to the free queue. */
+    QUEUE_PUSH_SAFE(ustate->free, &ustate->free_lock, next, prev, to_clean);
+}
+
+/* Check whether USTATE has a pending request and execute it if it does. Returns
+   0 on sucess, -errno on failure. */
 int
 manager_check_ready(cache_t *c, ustate_t *ustate)
 {
@@ -915,8 +942,6 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
            take care of itself and doesn't require management. */
         pthread_t _;
         assert(!pthread_create(&_, NULL, cache_remote_load, args));
-
-        return 0;
     }
 
     /* If not cached, issue IO. */
@@ -932,7 +957,7 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
 /* Check if any storage requests have completed their IO. Note that the network
    monitor handles completed network requests. Returns 0 on sucess, -errno on
    failure. */
-int
+void
 manager_check_done(cache_t *c, ustate_t *ustate)
 {
     /* Drain the io_uring completion queue into our completion queue. Using
@@ -974,8 +999,6 @@ manager_check_done(cache_t *c, ustate_t *ustate)
        skip_cache:
         QUEUE_PUSH_SAFE(ustate->done, &ustate->done_lock, next, prev, request);
     }
-
-    return 0;
 }
 
 /* Manager main loop. Handles all pending requests. */
@@ -1003,6 +1026,7 @@ manager_loop(void *args)
         }
 
         prev_length = c->lcache.n_unsynced;
+        manager_check_cleanup(c, ustate);
         manager_check_ready(c, ustate);
         manager_check_done(c, ustate);
 
@@ -1085,10 +1109,22 @@ int
 cache_get_reap(ustate_t *user, request_t **out)
 {
     /* Try to get a completed request. */
-    out = NULL;
-    QUEUE_POP_SAFE(user->done, &user->done_lock, next, prev, *out);
+    request_t *r = *out;
+    QUEUE_POP_SAFE(user->done, &user->done_lock, next, prev, r);
     if (out == NULL) {
         return -EAGAIN; /* Try again once request has been fulfilled. */
+    }
+
+    /* Open the shm object. */
+    if ((r->ufd_shm = shm_open(r->shm_path, O_RDONLY, S_IRUSR)) < 0) {
+        DEBUG_LOG("shm_open failed; %s\n", strerror(errno));
+        return -errno;
+    }
+
+    /* Create the mmap. */
+    if (mmap(r->udata, r->size, PROT_READ, FLAG_NONE, r->ufd_shm, 0) < 0) {
+        DEBUG_LOG("mmap failed; %s\n", strerror(errno));
+        return -errno;
     }
 
     return 0;
@@ -1097,10 +1133,22 @@ cache_get_reap(ustate_t *user, request_t **out)
 /* Spin on cache_get_reap until an entry becomes ready.
 
    TODO. Find a better method that doesn't require spinning. */
-void
+int
 cache_get_reap_wait(ustate_t *user, request_t **out)
 {
-    while (cache_get_reap(user, out) == EAGAIN);
+    int status;
+    while ((status = cache_get_reap(user, out)) == EAGAIN);
+    return status;
+}
+
+/* Release REQUEST, free user resources and move the request into the cleanup
+   queue (for backend resources to be evaluated and reclaimed). */
+void
+cache_release(ustate_t *user, request_t *request)
+{
+    munmap(request->udata, request->size);
+    close(request->ufd_shm);
+    QUEUE_PUSH_SAFE(user->cleanup, &user->cleanup_lock, next, prev, request);
 }
 
 
@@ -1184,6 +1232,7 @@ cache_init(cache_t *c,
         /* The other queues start empty. */
         ustate->ready = NULL;
         ustate->done = NULL;
+        ustate->cleanup = NULL;
 
         /* Initialize the io_uring queues. */
         int status = io_uring_queue_init(queue_depth, &ustate->ring, 0);
@@ -1197,6 +1246,7 @@ cache_init(cache_t *c,
         SPINLOCK_MUST_INIT(&ustate->free_lock);
         SPINLOCK_MUST_INIT(&ustate->ready_lock);
         SPINLOCK_MUST_INIT(&ustate->done_lock);
+        SPINLOCK_MUST_INIT(&ustate->cleanup_lock);
     }
 
     /* Set up the local cache. */
