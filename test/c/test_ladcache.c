@@ -33,6 +33,7 @@
 
 #include "../../csrc/ladcache/cache.h"
 #include "../../csrc/utils/log.h"
+#include "../../csrc/utils/fifo.h"
 
 #define DEFAULT_MAX_UNSYNCED 2
 #define DEFAULT_CAPACITY 64 * 1024 * 1024
@@ -107,7 +108,9 @@ test_interactive(cache_t *c)
 
       struct timespec time_end;
       clock_gettime(CLOCK_REALTIME, &time_end);
-      printf("done (%lu ns) (%lu bytes)\n", (time_end.tv_nsec - time_start.tv_nsec), 0ul);
+      printf("done (%lu ns) (%lu bytes)\n", (time_end.tv_nsec - time_start.tv_nsec), out->size);
+
+      QUEUE_PUSH_SAFE(c->ustates->free, &c->ustates->free_lock, next, prev, out);
    }
 
    return 0;
