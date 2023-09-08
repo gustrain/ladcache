@@ -1147,12 +1147,14 @@ cache_init(cache_t *c,
     }
 
     /* Set up the local cache. */
-    c->lcache.ht = NULL;
-    c->lcache.unsynced = NULL;
-    c->lcache.n_unsynced = 0;
-    c->lcache.threshold = max_unsynced;
-    c->lcache.capacity = capacity;
-    c->lcache.used = 0;
+    c->lcache = (lcache_t) {
+        .ht = NULL,
+        .unsynced = NULL,
+        .n_unsynced = 0,
+        .threshold = max_unsynced,
+        .capacity = capacity,
+        .used = 0
+    };
 
     /* Set up the remote cache. */
     c->rcache.ht = NULL;
