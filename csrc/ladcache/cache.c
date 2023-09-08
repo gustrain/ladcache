@@ -137,7 +137,8 @@ network_connect(in_addr_t ip)
 }
 
 /* Allocates a message_t struct, points OUT to it, and reads a message from FD
-   (socket) into it. Returns 0 on success, -errno on failure. */
+   (socket) into it. OUT must only be freed by the user if the function returns
+   successfully. Returns 0 on success, -errno on failure. */
 int
 network_get_message(int fd, message_t **out)
 {
@@ -181,7 +182,8 @@ network_get_message(int fd, message_t **out)
 }
 
 /* Constructs and sends a message to the socket on FD with SIZE bytes of DATA
-   as the payload. Returns 0 on sucess and -errno on failure. */
+   as the payload. Does NOT close FD once finished. Returns 0 on sucess and
+   -errno on failure. */
 int
 network_send_message(mtype_t type, int flags, void *data, uint32_t size, int fd)
 {
@@ -676,36 +678,17 @@ cache_local_store(lcache_t *lc, char *path, uint8_t *data, size_t size)
         return -ENOMEM;
     }
 
-    /* Create the shm object. */
-    shmify(path, loc->shm_path, MAX_PATH_LEN + 1, MAX_SHM_PATH_LEN + 1);
-    loc->shm_fd = shm_open(loc->shm_path, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
-    if (loc->shm_fd < 0) {
-        DEBUG_LOG("shm_open failed\n");
-        return -errno;
-    }
-
-    /* Size the shm object. */
+    /* Allocate shared memory. */
     loc->size = size;
-    if (ftruncate(loc->shm_fd, size) < 0) {
-        DEBUG_LOG("ftruncate failed\n");
-        shm_unlink(loc->shm_path);
-        close(loc->shm_fd);
-        return -errno;
+    shmify(path, loc->shm_path, MAX_PATH_LEN + 1, MAX_SHM_PATH_LEN + 1);
+    loc->shm_fd = shm_alloc(loc->shm_path, &loc->data, loc->size);
+    if (loc->shm_fd < 0) {
+        int status = loc->shm_fd;
+        free(loc);
+        return status;
     }
 
-    /* Create the mmap. */
-    loc->data = mmap(NULL, size, PROT_WRITE, MAP_SHARED, loc->shm_fd, 0);
-    if (loc->data == NULL) {
-        DEBUG_LOG("mmap failed\n");
-        shm_unlink(loc->shm_path);
-        close(loc->shm_fd);
-        return -ENOMEM;
-    }
-
-    /* Page-lock the memory. */
-    mlock(loc->data, size);
-
-    /* Copy data to cache. */
+    /* Copy data in. */
     memcpy(loc->data, data, size);
 
     /* Insert into hash table. */
@@ -801,32 +784,38 @@ cache_remote_load(void *args)
     /* Wait for a response. */
     message_t *response;
     status = network_get_message(peer_fd, &response);
-    close(peer_fd);
+    close(peer_fd); /* Socket use finished here. */
     if (status < 0) {
+        /* ISSUE: leaking this request. */
         DEBUG_LOG("network_get_message failed; %s\n", strerror(-status));
         return NULL;
     }
 
     /* Make sure we got a sensible response. */
     if (response->header.type != TYPE_RSPN) {
+        /* ISSUE: leaking this request. */
         DEBUG_LOG("Received an incorrect message type (type = 0x%hx).", response->header.type);
+        free(response);
         return NULL;
     }
 
     /* Was the peer unable to fulfill the request? */
     if (response->header.unbl) {
+        /* ISSUE: leaking this request. */
         DEBUG_LOG("Peer unable to fulfill request for %s.\n", request->path);
+        free(response);
         return NULL;
     }
 
-    /* TODO. Allocate an shm object for the file data.
-    
-       NOTE: it would be more efficient to have read() read directly into the
-             shm object, however this would complicate the get_message interface
-             and so for now we'll just eat the copy cost. */
-    void *ptr = NULL;
-
-    /* TODO. Configure the request and push into the done queue. */
+    /* Allocate an shm object for the file data. Note it would be more efficient
+       to have read() read directly into the shm object, however this would
+       complicate the get_message interface and so we'll just eat the copy cost
+       for now. */
+    request->size = response->header.length;
+    shmify(request->path, request->shm_path, MAX_PATH_LEN + 1, MAX_SHM_PATH_LEN + 1);
+    request->_lfd_shm = shm_alloc(request->shm_path, &request->_ldata, request->size);
+    memcpy(request->_ldata, response->data, request->size);
+    free(response);
 
     return NULL;
 }
@@ -857,29 +846,10 @@ manager_submit_io(ustate_t *ustate, request_t *r)
     r->size = (((size_t) size) | 0xFFF) + 1;
 
     /* Create buffer using shm. */
-    r->_lfd_shm = shm_open(r->shm_path, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    r->_lfd_shm = shm_alloc(r->shm_path, &r->_ldata, r->size);
     if (r->_lfd_shm < 0) {
-        DEBUG_LOG("shm_open failed; %s\n", r->shm_path);
-        return -errno;
-    }
-
-    /* Size buffer to fit file data. */
-    if (ftruncate(r->_lfd_shm, r->size) < 0) {
-        DEBUG_LOG("ftruncate failed\n");
-        shm_unlink(r->shm_path);
-        close(r->_lfd_shm);
         close(r->_lfd_file);
-        return -errno;
-    }
-
-    /* Create mmap for the shm object. */
-    r->_ldata = mmap(NULL, r->size, PROT_WRITE, MAP_SHARED, r->_lfd_shm, 0);
-    if (r->_ldata == NULL) {
-        DEBUG_LOG("mmap failed\n");
-        shm_unlink(r->shm_path);
-        close(r->_lfd_shm);
-        close(r->_lfd_file);
-        return -ENOMEM;
+        return r->_lfd_shm;
     }
 
     /* Tell io_uring to read the file into the buffer. */
