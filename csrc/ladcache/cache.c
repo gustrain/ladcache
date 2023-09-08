@@ -1132,9 +1132,7 @@ cache_init(cache_t *c,
     /* Initialize user states. */
     c->n_users = n_users;
     c->qdepth = queue_depth;
-    DEBUG_LOG("initializing %d ustates...\n", c->n_users);
     for (int i = 0; i < c->n_users; i++) {
-        DEBUG_LOG("initializing ustate %d\n", i);
         ustate_t *ustate = &c->ustates[i];
 
         /* Allocate requests (queue entries). */
