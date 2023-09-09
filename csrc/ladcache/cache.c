@@ -319,6 +319,7 @@ cache_sync(cache_t *c)
         strncpy(fp_dest, loc->path, MAX_PATH_LEN + 1);
         fp_dest += strlen(loc->path + 1);
     } while (c->lcache.unsynced != NULL);
+    c->lcache.n_unsynced = 0;
 
 
     /* Send the message to everyone we know. */
