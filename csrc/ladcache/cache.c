@@ -565,6 +565,7 @@ registrar_loop(void *args)
     };
     if ((status = setsockopt(sfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv))) < 0) {
         DEBUG_LOG("Failed to set registrar socket timeout; %s\n", strerror(errno));
+        close(sfd);
         return NULL;
     }
 
@@ -577,6 +578,15 @@ registrar_loop(void *args)
     };
     if ((status = bind(sfd, (const struct sockaddr *) &server_addr, addr_len)) < 0) {
         DEBUG_LOG("bind failed; %s\n", strerror(errno));
+        close(sfd);
+        return NULL;
+    }
+
+    /* Determine our own IP address so we can prevent adding ourselves. */
+    struct sockaddr_in local_addr;
+    if (getsockname(sfd, (struct sockaddr *) &local_addr, sizeof(local_addr)) < 0) {
+        DEBUG_LOG("getsockname failed; %s\n", strerror(errno));
+        close(sfd);
         return NULL;
     }
 
@@ -613,7 +623,9 @@ registrar_loop(void *args)
         }
 
         /* Check validity of message. */
-        if (header.header.magic != HEADER_MAGIC || header.header.type != TYPE_HLLO) {
+        if (header.header.magic != HEADER_MAGIC ||
+            header.header.type != TYPE_HLLO ||
+            client_addr.sin_addr.s_addr == local_addr.sin_addr.s_addr) {
             continue;
         }
 
@@ -624,6 +636,7 @@ registrar_loop(void *args)
             peer_t *peer = malloc(sizeof(peer_t));
             if (peer == NULL) {
                 DEBUG_LOG("unable to allocate peer record.\n");
+                close(sfd);
                 return NULL;
             }
             peer->ip = client_addr.sin_addr.s_addr;
@@ -649,6 +662,9 @@ registrar_loop(void *args)
             }
         }
     }
+
+    NOT_REACHED();
+    return NULL;
 }
 
 /* Spawn a thread running the registrar loop. */
