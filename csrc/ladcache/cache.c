@@ -42,6 +42,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <sched.h>
 
 #define N_HT_LOCKS (16)
 #define PORT_DEFAULT (8080)
@@ -1130,14 +1131,15 @@ cache_get_reap(ustate_t *user, request_t **out)
     return 0;
 }
 
-/* Spin on cache_get_reap until an entry becomes ready.
-
-   TODO. Find a better method that doesn't require spinning. */
+/* Spin on cache_get_reap until an entry becomes ready. Returns 0 on success,
+   -errno on failure. */
 int
 cache_get_reap_wait(ustate_t *user, request_t **out)
 {
     int status;
-    while ((status = cache_get_reap(user, out)) == -EAGAIN);
+    DEBUG_LOG("reap_wait start\n");
+    while ((status = cache_get_reap(user, out)) == -EAGAIN) shed_yield();
+    DEBUG_LOG("reap_wait end\n");
     return status;
 }
 
