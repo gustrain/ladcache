@@ -584,7 +584,7 @@ registrar_loop(void *args)
 
     /* Determine our own IP address so we can prevent adding ourselves. */
     struct sockaddr_in local_addr;
-    if (getsockname(sfd, (struct sockaddr *) &local_addr, sizeof(local_addr)) < 0) {
+    if (getsockname(sfd, (struct sockaddr *) &local_addr, &addr_len) < 0) {
         DEBUG_LOG("getsockname failed; %s\n", strerror(errno));
         close(sfd);
         return NULL;
