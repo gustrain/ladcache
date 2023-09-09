@@ -48,7 +48,7 @@
 #define PORT_DEFAULT (8080)
 #define MAX_QUEUE_REQUESTS 64
 #define SOCKET_TIMEOUT_S (5)
-#define REGISTER_PERIOD_S (15)
+#define REGISTER_PERIOD_S (5)
 
 #define MIN(a, b) ((a) > (b) ? (a) : (b))
 #define NOT_REACHED()       \
@@ -1049,7 +1049,6 @@ manager_loop(void *args)
         } else {
             idle_iters++;
             if (idle_iters % (8 * 1024 * 1024) == 0) {
-                DEBUG_LOG("idle_iters = %lu, n_unsynced = %lu.\n", idle_iters, c->lcache.n_unsynced);
             }
         }
     }
