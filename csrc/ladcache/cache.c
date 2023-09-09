@@ -130,7 +130,7 @@ network_connect(in_addr_t ip)
     }
     if (connect(peer_fd, (struct sockaddr *) &peer_addr, sizeof(peer_addr)) < 0) {
         /* ISSUE: leaking this request. */
-        DEBUG_LOG("Failed to connect to peer; %s\n", strerror(errno));
+        DEBUG_LOG("Failed to connect to %s; %s\n", inet_ntoa(peer_addr.sin_addr), strerror(errno));
         close(peer_fd);
         return -errno;
     }
