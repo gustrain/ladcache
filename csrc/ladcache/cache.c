@@ -1036,7 +1036,7 @@ manager_loop(void *args)
             idle_iters = 0;
         } else {
             idle_iters++;
-            if (idle_iters % (1024 * 1024) == 0) {
+            if (idle_iters % (8 * 1024 * 1024) == 0) {
                 DEBUG_LOG("idle_idles = %lu, n_unsynced = %lu.\n", idle_iters, c->lcache.n_unsynced);
             }
         }
@@ -1137,7 +1137,7 @@ int
 cache_get_reap_wait(ustate_t *user, request_t **out)
 {
     int status;
-    while ((status = cache_get_reap(user, out)) == EAGAIN);
+    while ((status = cache_get_reap(user, out)) == -EAGAIN);
     return status;
 }
 
