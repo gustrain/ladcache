@@ -968,7 +968,6 @@ manager_check_done(cache_t *c, ustate_t *ustate)
     struct io_uring_cqe *cqe;
     while (!io_uring_peek_cqe(&ustate->ring, &cqe)) {
         request_t *request = io_uring_cqe_get_data(cqe);
-        DEBUG_LOG("io_uring finished %s\n", request->path);
         io_uring_cqe_seen(&ustate->ring, cqe);
 
         /* Try to cache this file. */
@@ -1141,9 +1140,7 @@ int
 cache_get_reap_wait(ustate_t *user, request_t **out)
 {
     int status;
-    DEBUG_LOG("reap_wait start\n");
     while ((status = cache_get_reap(user, out)) == -EAGAIN) sched_yield();
-    DEBUG_LOG("reap_wait end\n");
     return status;
 }
 
