@@ -964,6 +964,7 @@ manager_check_done(cache_t *c, ustate_t *ustate)
     /* Drain the io_uring completion queue into our completion queue. Using
        peek (instead of wait) to ensure the check is non-blocking. */
     struct io_uring_cqe *cqe;
+    DEBUG_LOG("checking io_uring\n");
     while (!io_uring_peek_cqe(&ustate->ring, &cqe)) {
         request_t *request = io_uring_cqe_get_data(cqe);
         DEBUG_LOG("io_uring finished %s\n", request->path);
@@ -1040,7 +1041,7 @@ manager_loop(void *args)
         } else {
             idle_iters++;
             if (idle_iters % (8 * 1024 * 1024) == 0) {
-                DEBUG_LOG("idle_idles = %lu, n_unsynced = %lu.\n", idle_iters, c->lcache.n_unsynced);
+                DEBUG_LOG("idle_iters = %lu, n_unsynced = %lu.\n", idle_iters, c->lcache.n_unsynced);
             }
         }
     }
