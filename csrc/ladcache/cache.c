@@ -589,6 +589,7 @@ registrar_loop(void *args)
         close(sfd);
         return NULL;
     }
+    DEBUG_LOG("registrar IP is %s\n", inet_ntoa(local_addr.sin_addr));
 
     /* Continually await new datagrams, and respond in kind upon reception. */
     message_t header;
