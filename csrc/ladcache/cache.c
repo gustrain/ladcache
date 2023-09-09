@@ -865,6 +865,7 @@ manager_submit_io(ustate_t *ustate, request_t *r)
     /* Create buffer using shm. */
     r->_lfd_shm = shm_alloc(r->shm_path, &r->_ldata, r->size);
     if (r->_lfd_shm < 0) {
+        DEBUG_LOG("shm_alloc failed; %s\n", strerror(-r->_lfd_shm));
         close(r->_lfd_file);
         return r->_lfd_shm;
     }
