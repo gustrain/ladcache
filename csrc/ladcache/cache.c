@@ -255,7 +255,7 @@ cache_register(cache_t *c)
         .header.unbl = false,
         .header.rply = true,
         .header.flg3 = false,
-        .header.length = 0
+        .header.random = c->random
     };
 
     /* Broadcast the message. */
