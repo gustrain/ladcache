@@ -1113,7 +1113,7 @@ int
 cache_get_reap(ustate_t *user, request_t **out)
 {
     /* Try to get a completed request. */
-    request_t *r = *out;
+    request_t *r = NULL;
     QUEUE_POP_SAFE(user->done, &user->done_lock, next, prev, r);
     if (r == NULL) {
         return -EAGAIN; /* Try again once request has been fulfilled. */
@@ -1131,6 +1131,7 @@ cache_get_reap(ustate_t *user, request_t **out)
         return -errno;
     }
 
+    *out = r;
     return 0;
 }
 
