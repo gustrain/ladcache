@@ -874,6 +874,7 @@ manager_submit_io(ustate_t *ustate, request_t *r)
     struct io_uring_sqe *sqe = io_uring_get_sqe(&ustate->ring);
     io_uring_prep_read(sqe, r->_lfd_file, r->_ldata, r->size, 0);
     io_uring_sqe_set_data(sqe, r);
+    io_uring_submit(&ustate->ring);
 
     return 0;
 }
