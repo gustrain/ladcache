@@ -1138,7 +1138,7 @@ cache_get_reap_wait(ustate_t *user, request_t **out)
 {
     int status;
     DEBUG_LOG("reap_wait start\n");
-    while ((status = cache_get_reap(user, out)) == -EAGAIN) shed_yield();
+    while ((status = cache_get_reap(user, out)) == -EAGAIN) sched_yield();
     DEBUG_LOG("reap_wait end\n");
     return status;
 }
