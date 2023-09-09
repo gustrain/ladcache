@@ -130,18 +130,31 @@ typedef struct {
         (0000)   │7 bytes │n bytes │
         ──────►  └────────┴────────┘
 
-                        ┌───────┬──────┬──┬──┬──┬──┬───────┐
-                header  │0xADDA │type  │CR│UN│RP│FL│length │
-                format  │2 bytes│4 bits│CT│BL│LY│G3│4 bytes│
-                        └───────┴──────┴──┴──┴──┴──┴───────┘
+                        ┌───────┬──────┬──┬──┬──┬──┬───────┬───────┐
+                header  │0xADDA │type  │CR│UN│RP│FL│length │random │
+                format  │2 bytes│4 bits│CT│BL│LY│G3│4 bytes│4 bytes│
+                        └───────┴──────┴──┴──┴──┴──┴───────┴───────┘
                                         BIT FLAGS
     
     The first 2 bytes of the header are just an arbitrary magic value. The
     header's length field specifies the number of bytes to follow the header in
-    the message. */
+    the message.
+    
+    Note that the header's "random" field is used only for UDP discovery, and is
+    combined with the "length" field to allow each machine 64 bits of randomness
+    in order to guarantee they never add themselves as a peer, with only a very
+    low probability of not adding another legitimate peer with the same value.
+    
+    In the case where a collision does occur, nothing much is lost, as the only
+    effect will be that those two machines will not be able to utilize each
+    others' caches. Nothing will break. With 64 bits of randomness, ~20k hosts
+    would be required for there to be a 1 in 1,000,000,000 chance of at least
+    one collision. 
+    
+    (see https://en.wikipedia.org/wiki/Birthday_problem#Probability_table) */
 typedef struct {
     union {
-        uint8_t raw[7];
+        uint8_t raw[11];
         struct {
             uint16_t magic;     /* Magic value (HEADER_MAGIC). */
             mtype_t  type : 4;  /* Message type. */
@@ -149,7 +162,10 @@ typedef struct {
             bool     unbl : 1;  /* Unable (could not fulfill). */
             bool     rply : 1;  /* Reply (toggle for optional message types). */
             bool     flg3 : 1;  /* Unused. Flag 3. */
-            uint32_t length;    /* Number of bytes following header. */
+            union {
+                uint32_t length;    /* Number of bytes following header. */
+                uint64_t random;    /* Random identifier for the machine. */
+            };
         };
     } header;
     uint8_t data[];
@@ -199,6 +215,7 @@ typedef struct {
 typedef struct {
     lcache_t  lcache;   /* Local cache. */
     rcache_t  rcache;   /* Remote cache. */
+    uint64_t  random;   /* 64-bit random value from /dev/urandom. */
     int       n_users;  /* Number of users. */
     int       qdepth;   /* Queue depth. */
     peer_t   *peers;    /* Iterable hash table of peers. */

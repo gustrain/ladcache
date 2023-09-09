@@ -565,8 +565,7 @@ registrar_loop(void *args)
     };
     if ((status = setsockopt(sfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv))) < 0) {
         DEBUG_LOG("Failed to set registrar socket timeout; %s\n", strerror(errno));
-        close(sfd);
-        return NULL;
+        goto fail;
     }
 
     /* Accept all incoming connections. */
@@ -578,18 +577,8 @@ registrar_loop(void *args)
     };
     if ((status = bind(sfd, (const struct sockaddr *) &server_addr, addr_len)) < 0) {
         DEBUG_LOG("bind failed; %s\n", strerror(errno));
-        close(sfd);
-        return NULL;
+        goto fail;
     }
-
-    /* Determine our own IP address so we can prevent adding ourselves. */
-    struct sockaddr_in local_addr;
-    if (getsockname(sfd, (struct sockaddr *) &local_addr, &addr_len) < 0) {
-        DEBUG_LOG("getsockname failed; %s\n", strerror(errno));
-        close(sfd);
-        return NULL;
-    }
-    DEBUG_LOG("registrar IP is %s\n", inet_ntoa(local_addr.sin_addr));
 
     /* Continually await new datagrams, and respond in kind upon reception. */
     message_t header;
@@ -626,7 +615,7 @@ registrar_loop(void *args)
         /* Check validity of message. */
         if (header.header.magic != HEADER_MAGIC ||
             header.header.type != TYPE_HLLO ||
-            client_addr.sin_addr.s_addr == local_addr.sin_addr.s_addr) {
+            header.header.random == c->random) {
             continue;
         }
 
@@ -637,8 +626,7 @@ registrar_loop(void *args)
             peer_t *peer = malloc(sizeof(peer_t));
             if (peer == NULL) {
                 DEBUG_LOG("unable to allocate peer record.\n");
-                close(sfd);
-                return NULL;
+                goto fail;
             }
             peer->ip = client_addr.sin_addr.s_addr;
             HASH_ADD_INT(c->peers, ip, peer);
@@ -649,12 +637,13 @@ registrar_loop(void *args)
            the client address and their message. */
         if (header.header.rply) {
             header.header.rply = false;
+            header.header.random = c->random;
             if ((bytes = sendto(sfd,
-                                 (void *) &header,
-                                 sizeof(message_t),
-                                 FLAG_NONE,
-                                 (struct sockaddr *) &client_addr,
-                                 sizeof(client_addr)) != sizeof(message_t))) {
+                                (void *) &header,
+                                sizeof(message_t),
+                                FLAG_NONE,
+                                (struct sockaddr *) &client_addr,
+                                sizeof(client_addr)) != sizeof(message_t))) {
                 if (bytes < 0) {
                     DEBUG_LOG("failed to send registration reply; %s\n", strerror(errno));
                 } else {
@@ -664,7 +653,8 @@ registrar_loop(void *args)
         }
     }
 
-    NOT_REACHED();
+   fail:
+    close(sfd);
     return NULL;
 }
 
@@ -1288,6 +1278,22 @@ cache_init(cache_t *c,
     /* Set up the total cache. */
     c->peers = NULL;
     SPINLOCK_MUST_INIT(&c->peer_lock);
+
+    /* Get a unique (actually random) number to serve as this machine's ID to
+       avoid self-adding. See comments in cache.h for more details. */
+    int rfd = open("/dev/urandom", O_RDONLY);
+    if (rfd < 0) {
+        DEBUG_LOG("failed to open /dev/urandom; %s\n", strerror(errno));
+        cache_destroy(c);
+        return -errno;
+    }
+    ssize_t bytes = read(rfd, &c->random, sizeof(c->random));
+    close(rfd);
+    if (bytes != sizeof(c->random)) {
+        DEBUG_LOG("failed to read randomness from /dev/urandom.\n");
+        cache_destroy(c);
+        return -EBADFD;
+    }
 
     return 0;
 }
