@@ -844,7 +844,7 @@ cache_remote_load(void *args)
 int
 manager_submit_io(ustate_t *ustate, request_t *r)
 {
-    DEBUG_LOG("Loading %s from the local cache.\n", r->path);
+    DEBUG_LOG("Loading %s from storage.\n", r->path);
 
     /* Open the file. */
     r->_lfd_file = open(r->path, O_RDONLY | __O_DIRECT);
