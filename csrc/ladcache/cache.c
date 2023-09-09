@@ -966,6 +966,7 @@ manager_check_done(cache_t *c, ustate_t *ustate)
     struct io_uring_cqe *cqe;
     while (!io_uring_peek_cqe(&ustate->ring, &cqe)) {
         request_t *request = io_uring_cqe_get_data(cqe);
+        DEBUG_LOG("io_uring finished %s\n", request->path);
         io_uring_cqe_seen(&ustate->ring, cqe);
 
         /* Try to cache this file. */
@@ -993,11 +994,12 @@ manager_check_done(cache_t *c, ustate_t *ustate)
 
             /* Add to list of filenames to be synchronized. */
             QUEUE_PUSH(c->lcache.unsynced, next, prev, loc);
-
             c->lcache.n_unsynced++;
+            DEBUG_LOG("pushed to unsynced; now n_unsynced = %lu\n", c->lcache.n_unsynced);
         }
 
        skip_cache:
+        DEBUG_LOG("pushed %s to done\n", request->path);
         QUEUE_PUSH_SAFE(ustate->done, &ustate->done_lock, next, prev, request);
     }
 }
