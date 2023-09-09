@@ -1111,7 +1111,7 @@ cache_get_reap(ustate_t *user, request_t **out)
     /* Try to get a completed request. */
     request_t *r = *out;
     QUEUE_POP_SAFE(user->done, &user->done_lock, next, prev, r);
-    if (out == NULL) {
+    if (r == NULL) {
         return -EAGAIN; /* Try again once request has been fulfilled. */
     }
 
