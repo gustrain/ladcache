@@ -448,6 +448,7 @@ monitor_handle_sync(message_t *message, cache_t *c, int fd)
         filepath += strlen(filepath) + 1;
     }
     DEBUG_LOG("Received SYNC from %s with %u files.\n", inet_ntoa(addr.sin_addr), n_entries);
+    print_header(message);
 
     return 0;
 }
