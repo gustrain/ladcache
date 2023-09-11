@@ -128,10 +128,10 @@ network_connect(in_addr_t ip)
         DEBUG_LOG("Failed to open socket; %s\n", strerror(errno));
         return -errno;
     }
-    DEBUG_LOG("Opening connection to %s:%u...\n", inet_ntoa((struct in_addr) {.s_addr = ntohl(ip)}), PORT_DEFAULT);
+    DEBUG_LOG("Opening connection to %s:%u...\n", inet_ntoa(peer_addr.sin_addr), PORT_DEFAULT);
     if (connect(peer_fd, (struct sockaddr *) &peer_addr, sizeof(peer_addr)) < 0) {
         /* ISSUE: leaking this request. */
-        DEBUG_LOG("Failed to connect to %s; %s\n", inet_ntoa((struct in_addr) {.s_addr = ntohl(ip)}), strerror(errno));
+        DEBUG_LOG("Failed to connect to %s; %s\n", inet_ntoa(peer_addr.sin_addr), strerror(errno));
         close(peer_fd);
         return -errno;
     }
@@ -830,6 +830,11 @@ cache_remote_load(void *args)
     if (response->header.type != TYPE_RSPN) {
         /* ISSUE: leaking this request. */
         DEBUG_LOG("Received an incorrect message type (type = 0x%hx)\n", response->header.type);
+        printf("Raw header: 0x");
+        for (int i = 0; i < sizeof(response->header.raw); i++) {
+            printf("%#1x", response->header.raw[i]);
+        }
+        printf("\n");
         free(response);
         return NULL;
     }
