@@ -145,7 +145,7 @@ network_connect(in_addr_t ip)
 int
 network_get_message(int fd, message_t **out)
 {
-    ssize_t bytes;
+    ssize_t bytes, temp;
     uint32_t len;
 
     /* Get the request header. */
@@ -174,7 +174,8 @@ network_get_message(int fd, message_t **out)
     }
 
     /* Read the rest of the message. */
-    if ((bytes = read(fd, (void *) message->data, len)) != len) {
+    while (temp = read(fd, ((void *) message->data) + bytes, len - bytes) != EOF && len - bytes > 0) {}
+    if (len - bytes != 0) {
         DEBUG_LOG("Expected %u bytes but got %ld.\n", len, bytes);
         free(message);
         return -EBADMSG;
