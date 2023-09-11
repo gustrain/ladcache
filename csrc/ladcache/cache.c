@@ -121,6 +121,7 @@ network_connect(in_addr_t ip)
         .sin_port = PORT_DEFAULT
     };
 
+
     /* Open the socket. */
     int peer_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (peer_fd < 0) {
@@ -128,6 +129,7 @@ network_connect(in_addr_t ip)
         DEBUG_LOG("Failed to open socket; %s\n", strerror(errno));
         return -errno;
     }
+    DEBUG_LOG("Opening connection to %s:%u...\n", inet_ntoa(peer_addr.sin_addr), peer_addr.sin_port);
     if (connect(peer_fd, (struct sockaddr *) &peer_addr, sizeof(peer_addr)) < 0) {
         /* ISSUE: leaking this request. */
         DEBUG_LOG("Failed to connect to %s; %s\n", inet_ntoa(peer_addr.sin_addr), strerror(errno));
