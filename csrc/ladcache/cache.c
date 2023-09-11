@@ -162,9 +162,12 @@ network_get_message(int fd, message_t **out)
         free(message);
         return -EBADMSG;
     }
-    if ((len = message->header.length) == 0) {
+    if ((len = message->header.length) == 0) {  /* Zero is zero regardless of byte order. */
         return 0;
     }
+
+    /* Fix length byte order. */
+    message->header.length = ntohl(message->header.length);
 
     /* Allocate space for the rest of the message. */
     if (realloc(message, sizeof(message_t) + len) == NULL) {
@@ -197,7 +200,7 @@ network_send_message(mtype_t type, int flags, void *data, uint32_t size, int fd)
     /* Configure the header. */
     header.header.type = type;
     header.header.magic = HEADER_MAGIC;
-    header.header.length = size;
+    header.header.length = htonl(size);
 
     /* Send the header. */
     ssize_t bytes;
@@ -383,7 +386,7 @@ monitor_handle_request(message_t *message, cache_t *c, int fd)
     }
 
     /* Otherwise, reply with our cached file data. */
-    DEBUG_LOG("Sending %s %s (%u bytes).\n", inet_ntoa(addr.sin_addr), path, message->header.length);
+    DEBUG_LOG("Sending %s %s (%u bytes).\n", inet_ntoa(addr.sin_addr), path, loc->size);
     return network_send_message(TYPE_RSPN, FLAG_NONE, loc->data, loc->size, fd);
 }
 
