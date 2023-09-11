@@ -140,7 +140,6 @@ network_connect(in_addr_t ip)
         DEBUG_LOG("Failed to open socket; %s\n", strerror(errno));
         return -errno;
     }
-    DEBUG_LOG("Opening connection to %s:%u...\n", inet_ntoa(peer_addr.sin_addr), PORT_DEFAULT);
     if (connect(peer_fd, (struct sockaddr *) &peer_addr, sizeof(peer_addr)) < 0) {
         /* ISSUE: leaking this request. */
         DEBUG_LOG("Failed to connect to %s; %s\n", inet_ntoa(peer_addr.sin_addr), strerror(errno));
@@ -216,7 +215,6 @@ network_send_message(mtype_t type, int flags, void *data, uint32_t size, int fd)
     header.header.length = size;
 
     /* Send the header. */
-    // print_header(&header);
     ssize_t bytes;
     if ((bytes = send(fd, (void *) &header, sizeof(message_t), 0)) != sizeof(message_t)) {
         if (bytes < 0) {
@@ -376,9 +374,6 @@ cache_sync(cache_t *c)
 int
 monitor_handle_request(message_t *message, cache_t *c, int fd)
 {
-    // DEBUG_LOG("monitor_handle_request\n");
-    // print_header(message);
-
     struct sockaddr_in addr;
     socklen_t addr_size = sizeof(addr);
     if (getpeername(fd, (struct sockaddr *) &addr, &addr_size) < 0) {
@@ -388,7 +383,7 @@ monitor_handle_request(message_t *message, cache_t *c, int fd)
 
     /* TODO. Verify the filepath is the correct length (i.e., \0 terminated). */
     char *path = (char *) message->data;
-    DEBUG_LOG("Received request from %s for %s.\n", inet_ntoa(addr.sin_addr), message->data);
+    DEBUG_LOG("Received request from %s for \"%s\".\n", inet_ntoa(addr.sin_addr), message->data);
 
     /* Try to retrieve the requested file from our cache. If uncached, reply
        that we are unable to fulfill their request. */
@@ -450,7 +445,6 @@ monitor_handle_sync(message_t *message, cache_t *c, int fd)
         filepath += strlen(filepath) + 1;
     }
     DEBUG_LOG("Received SYNC from %s with %u files.\n", inet_ntoa(addr.sin_addr), n_entries);
-    // print_header(message);
 
     return 0;
 }
@@ -465,8 +459,6 @@ struct monitor_handle_connection_args {
 void *
 monitor_handle_connection(void *args)
 {
-    // DEBUG_LOG("monitor_handle_connection\n");
-
     /* Get the arguments passed to us. */
     cache_t *c = ((struct monitor_handle_connection_args *) args)->c;
     int peer_fd = ((struct monitor_handle_connection_args *) args)->peer_fd;
@@ -534,7 +526,6 @@ monitor_loop(void *args)
     /* Handle all incoming connections. */
     while (true) {
         int cfd = accept(lfd, (struct sockaddr *) &addr, (socklen_t *) &addr_len);
-        printf("Accepted connection from %s\n", inet_ntoa(addr.sin_addr));
         if (cfd >= 0) {
             /* Prepare arguments. */
             struct monitor_handle_connection_args *conn_args = malloc(
@@ -845,7 +836,6 @@ cache_remote_load(void *args)
     if (response->header.type != TYPE_RSPN) {
         /* ISSUE: leaking this request. */
         DEBUG_LOG("Received an incorrect message type (type = 0x%hx)\n", response->header.type);
-        // print_header(response);
         free(response);
         return NULL;
     }
