@@ -216,8 +216,7 @@ network_send_message(mtype_t type, int flags, void *data, uint32_t size, int fd)
     header.header.length = size;
 
     /* Send the header. */
-    DEBUG_LOG("Sending header...");
-    print_header(&header);
+    // print_header(&header);
     ssize_t bytes;
     if ((bytes = send(fd, (void *) &header, sizeof(message_t), 0)) != sizeof(message_t)) {
         if (bytes < 0) {
@@ -377,8 +376,8 @@ cache_sync(cache_t *c)
 int
 monitor_handle_request(message_t *message, cache_t *c, int fd)
 {
-    DEBUG_LOG("monitor_handle_request\n");
-    print_header(message);
+    // DEBUG_LOG("monitor_handle_request\n");
+    // print_header(message);
 
     struct sockaddr_in addr;
     socklen_t addr_size = sizeof(addr);
@@ -451,7 +450,7 @@ monitor_handle_sync(message_t *message, cache_t *c, int fd)
         filepath += strlen(filepath) + 1;
     }
     DEBUG_LOG("Received SYNC from %s with %u files.\n", inet_ntoa(addr.sin_addr), n_entries);
-    print_header(message);
+    // print_header(message);
 
     return 0;
 }
@@ -466,7 +465,7 @@ struct monitor_handle_connection_args {
 void *
 monitor_handle_connection(void *args)
 {
-    DEBUG_LOG("monitor_handle_connection\n");
+    // DEBUG_LOG("monitor_handle_connection\n");
 
     /* Get the arguments passed to us. */
     cache_t *c = ((struct monitor_handle_connection_args *) args)->c;
@@ -820,7 +819,7 @@ cache_remote_load(void *args)
     }
 
     /* Send them a request for the file. */
-    DEBUG_LOG("Requesting file %s from %s.\n", request->path, inet_ntoa((struct in_addr) {.s_addr = loc->ip}));
+    DEBUG_LOG("Requesting file \"%s\" from %s.\n", request->path, inet_ntoa((struct in_addr) {.s_addr = loc->ip}));
     int status = network_send_message(TYPE_RQST,
                                       FLAG_NONE,
                                       request->path,
@@ -846,7 +845,7 @@ cache_remote_load(void *args)
     if (response->header.type != TYPE_RSPN) {
         /* ISSUE: leaking this request. */
         DEBUG_LOG("Received an incorrect message type (type = 0x%hx)\n", response->header.type);
-        print_header(response);
+        // print_header(response);
         free(response);
         return NULL;
     }
