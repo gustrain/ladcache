@@ -867,7 +867,7 @@ cache_remote_load(void *args)
     request->_lfd_shm = shm_alloc(request->shm_path, &request->_ldata, request->size);
     memcpy(request->_ldata, response->data, request->size);
     
-    DEBUG_LOG("Received %s (%u bytes) from %s.\n", request->path, response->header.length, inet_ntoa((struct in_addr) {.s_addr = loc->ip}));
+    DEBUG_LOG("Received \"%s\" (%u bytes) from %s.\n", request->path, response->header.length, inet_ntoa((struct in_addr) {.s_addr = loc->ip}));
     free(response);
     return NULL;
 }
