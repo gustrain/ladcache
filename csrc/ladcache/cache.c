@@ -110,15 +110,15 @@ file_get_size(int fd)
 /*   NETWORK (manager scope)   */
 /* --------------------------- */
 
-/* Open a socket to IP on the default port. Returns FD on success, -errno on
-   failure. */
+/* Open a socket to IP (host byte order) on the default port. Returns FD on
+   success, -errno on failure. */
 int
 network_connect(in_addr_t ip)
 {
     struct sockaddr_in peer_addr = {
         .sin_family = AF_INET,
-        .sin_addr.s_addr = ip,
-        .sin_port = PORT_DEFAULT
+        .sin_addr.s_addr = htonl(ip),
+        .sin_port = htons(PORT_DEFAULT)
     };
 
     /* Open the socket. */
@@ -128,10 +128,10 @@ network_connect(in_addr_t ip)
         DEBUG_LOG("Failed to open socket; %s\n", strerror(errno));
         return -errno;
     }
-    DEBUG_LOG("Opening connection to %s:%u...\n", inet_ntoa(peer_addr.sin_addr), peer_addr.sin_port);
+    DEBUG_LOG("Opening connection to %s:%u...\n", inet_ntoa((struct in_addr) {.s_addr = ip}), PORT_DEFAULT);
     if (connect(peer_fd, (struct sockaddr *) &peer_addr, sizeof(peer_addr)) < 0) {
         /* ISSUE: leaking this request. */
-        DEBUG_LOG("Failed to connect to %s; %s\n", inet_ntoa(peer_addr.sin_addr), strerror(errno));
+        DEBUG_LOG("Failed to connect to %s; %s\n", inet_ntoa((struct in_addr) {.s_addr = ip}), strerror(errno));
         close(peer_fd);
         return -errno;
     }
@@ -263,7 +263,7 @@ cache_register(cache_t *c)
     struct sockaddr_in addr = {
         .sin_family = AF_INET,
         .sin_addr.s_addr = INADDR_BROADCAST,
-        .sin_port = PORT_DEFAULT
+        .sin_port = htons(PORT_DEFAULT)
     };
     ssize_t bytes = sendto(broadcast_fd,
                            (void *) &header,
@@ -399,7 +399,7 @@ monitor_handle_sync(message_t *message, cache_t *c, int fd)
     if (getpeername(fd, (struct sockaddr *) &addr, &addr_size) < 0) {
         return -errno;
     }
-    in_addr_t ip = addr.sin_addr.s_addr;
+    in_addr_t ip = addr.sin_addr.s_addr; /* Host order. */
 
     /* Add their filepaths to the remote cache directory. */
     uint32_t n_entries = *((uint32_t *) message->data);
