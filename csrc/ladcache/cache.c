@@ -405,6 +405,7 @@ monitor_handle_sync(message_t *message, cache_t *c, int fd)
 
     /* Add their filepaths to the remote cache directory. */
     uint32_t n_entries = *((uint32_t *) message->data);
+    DEBUG_LOG("SYNC has %u entries\n", n_entries);
     char *filepath = ((char *) message->data) + sizeof(uint32_t);
     for (uint32_t i = 0; i < n_entries; i++) {
         /* Check string is in valid memory range. */
