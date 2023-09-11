@@ -906,8 +906,9 @@ manager_submit_io(ustate_t *ustate, request_t *r)
     return 0;
 }
 
-/* Check whether USTATE has any backend resources to be cleaned up. Returns 0 on
-   success, -errno on failure. */
+/* Check whether USTATE has any backend resources to be cleaned up. If resources
+   exist, clean up a single request_t struct per call. Returns 0 on success,
+   -errno on failure. */
 void
 manager_check_cleanup(cache_t *c, ustate_t *ustate)
 {
@@ -920,6 +921,7 @@ manager_check_cleanup(cache_t *c, ustate_t *ustate)
 
     /* Check if it should be cleaned up. */
     if (!to_clean->_skip_clean) {
+        DEBUG_LOG("Deep cleaning \"\" entry (%s).\n", to_clean->path, to_clean->shm_path);
         munmap(to_clean->_ldata, to_clean->size);
         close(to_clean->_lfd_shm);
         close(to_clean->_lfd_file);
@@ -1022,6 +1024,8 @@ manager_check_done(cache_t *c, ustate_t *ustate)
             HASH_ADD_STR(c->lcache.ht, path, loc);
             c->lcache.used += loc->size;
             request->_skip_clean = true;
+
+            DEBUG_LOG("Added \"%s\" to local cache; marked to skip cleanup.\n", loc->path);
 
             /* Add to list of filenames to be synchronized. */
             QUEUE_PUSH(c->lcache.unsynced, next, prev, loc);
@@ -1149,7 +1153,7 @@ cache_get_reap(ustate_t *user, request_t **out)
 
     /* Open the shm object. */
     if ((r->ufd_shm = shm_open(r->shm_path, O_RDONLY, S_IRUSR)) < 0) {
-        DEBUG_LOG("shm_open failed; %s\n", strerror(errno));
+        DEBUG_LOG("shm_open failed; \"%s\"; %s\n", r->shm_path, strerror(errno));
         return -errno;
     }
 
