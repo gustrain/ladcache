@@ -174,7 +174,10 @@ network_get_message(int fd, message_t **out)
     }
 
     /* Read the rest of the message. */
-    while ((temp = read(fd, ((void *) message->data) + bytes, len - bytes)) != EOF && len - bytes > 0) {}
+    bytes = 0;
+    while ((temp = read(fd, ((void *) message->data) + bytes, len - bytes)) != EOF && len - bytes > 0) {
+        bytes += temp;
+    }
     if (len - bytes != 0) {
         DEBUG_LOG("Expected %u bytes but got %ld.\n", len, bytes);
         free(message);
@@ -321,8 +324,6 @@ cache_sync(cache_t *c)
         strncpy(fp_dest, loc->path, MAX_PATH_LEN + 1);
         fp_dest += strlen(loc->path + 1);
     } while (c->lcache.unsynced != NULL);
-    c->lcache.n_unsynced = 0;
-
 
     /* Send the message to everyone we know. */
     pthread_spin_lock(&c->peer_lock);
@@ -352,6 +353,7 @@ cache_sync(cache_t *c)
     };
     pthread_spin_unlock(&c->peer_lock);
 
+    c->lcache.n_unsynced = 0;
     free(payload);
     return 0;
 }
