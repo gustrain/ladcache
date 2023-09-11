@@ -105,6 +105,18 @@ file_get_size(int fd)
     return -ENODEV;
 }
 
+void
+print_header(message_t *header) {
+    printf("magic: 0x%x\n", header->header.magic);
+    printf("type: 0x%x\n", header->header.type);
+    printf("crct: %d\n", header->header.crct);
+    printf("unbl: %d\n", header->header.unbl);
+    printf("rply: %d\n", header->header.rply);
+    printf("flg3: %d\n", header->header.flg3);
+    printf("length: 0x%x (%u)\n", header->header.length, header->header.length);
+    printf("random: 0x%lx\n", header->header.random);
+}
+
 
 /* --------------------------- */
 /*   NETWORK (manager scope)   */
@@ -830,11 +842,7 @@ cache_remote_load(void *args)
     if (response->header.type != TYPE_RSPN) {
         /* ISSUE: leaking this request. */
         DEBUG_LOG("Received an incorrect message type (type = 0x%hx)\n", response->header.type);
-        printf("Raw header: (length %lu) 0x", sizeof(response->header.raw));
-        for (int i = 0; i < sizeof(response->header.raw); i++) {
-            printf("%hhx", response->header.raw[i]);
-        }
-        printf("\n");
+        print_header(response);
         free(response);
         return NULL;
     }
