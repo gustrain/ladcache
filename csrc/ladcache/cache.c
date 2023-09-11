@@ -931,8 +931,8 @@ manager_check_cleanup(cache_t *c, ustate_t *ustate)
         return;
     }
 
-    /* Check if it should be cleaned up. */
-    if (!to_clean->_skip_clean) {
+    /* Check if it should be cleaned up (not exempt, not in an error state). */
+    if (!to_clean->_skip_clean && !to_clean->status) {
         DEBUG_LOG("Deep cleaning \"%s\" entry (%s).\n", to_clean->path, to_clean->shm_path);
         munmap(to_clean->_ldata, to_clean->size);
         close(to_clean->_lfd_shm);
