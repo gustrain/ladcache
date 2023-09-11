@@ -391,8 +391,6 @@ monitor_handle_request(message_t *message, cache_t *c, int fd)
 int
 monitor_handle_sync(message_t *message, cache_t *c, int fd)
 {
-    DEBUG_LOG("monitor_handle_sync\n");
-
     /* TODO. Verify filepaths are valid ('\0' terminated, etc.) */
 
     /* Figure out who we're talking to. */
@@ -405,9 +403,7 @@ monitor_handle_sync(message_t *message, cache_t *c, int fd)
 
     /* Add their filepaths to the remote cache directory. */
     uint32_t n_entries = *((uint32_t *) message->data);
-    DEBUG_LOG("SYNC has %u entries\n", n_entries);
     char *filepath = ((char *) message->data) + sizeof(uint32_t);
-    DEBUG_LOG("Filepath: %s\n", filepath);
     for (uint32_t i = 0; i < n_entries; i++) {
         /* Check string is in valid memory range. */
         size_t fp_len = strlen(filepath);
@@ -534,7 +530,6 @@ monitor_loop(void *args)
 
             /* This thread will terminate gracefully on its own and we don't
                need to track it. */
-            DEBUG_LOG("spawning thread for connection\n");
             pthread_t _;
             pthread_create(&_, NULL, monitor_handle_connection, conn_args);
         }
@@ -1018,7 +1013,6 @@ manager_check_done(cache_t *c, ustate_t *ustate)
             /* Add to list of filenames to be synchronized. */
             QUEUE_PUSH(c->lcache.unsynced, next, prev, loc);
             c->lcache.n_unsynced++;
-            DEBUG_LOG("pushed to unsynced; now n_unsynced = %lu\n", c->lcache.n_unsynced);
         }
 
        skip_cache:
