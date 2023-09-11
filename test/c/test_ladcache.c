@@ -100,14 +100,14 @@ test_interactive(cache_t *c)
       /* Submit the request. */
       if ((status = cache_get_submit(c->ustates, input)) < 0) {
          DEBUG_LOG("cache_get_submit failed; %s\n", strerror(-status));
-         continue;
+         exit(EXIT_FAILURE);
       }
 
       /* Retrieve the loaded file. */
       request_t *out;
       if ((status = cache_get_reap_wait(c->ustates, &out)) < 0) {
          DEBUG_LOG("cache_get_reap_wait failed; %s\n", strerror(-status));
-         continue;
+         exit(EXIT_FAILURE);
       }
 
       struct timespec time_end;
