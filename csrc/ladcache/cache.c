@@ -179,7 +179,7 @@ network_get_message(int fd, message_t **out)
     }
 
     /* Allocate space for the rest of the message. */
-    if (realloc(message, sizeof(message_t) + len) == NULL) {
+    if ((message = realloc(message, sizeof(message_t) + len)) == NULL) {
         DEBUG_LOG("Unable to allocate an additional %u bytes for full message.\n", len);
         free(message);
         return -ENOMEM;
