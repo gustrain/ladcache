@@ -499,7 +499,7 @@ monitor_loop(void *args)
     struct sockaddr_in addr = {
         .sin_family = AF_INET,
         .sin_addr.s_addr = INADDR_ANY,
-        .sin_port = PORT_DEFAULT
+        .sin_port = htons(PORT_DEFAULT)
     };
     socklen_t addr_len = sizeof(addr);
     if (bind(lfd, (struct sockaddr *)&addr, addr_len) < 0) {
@@ -582,7 +582,7 @@ registrar_loop(void *args)
     struct sockaddr_in server_addr = {
         .sin_family = AF_INET,
         .sin_addr.s_addr = INADDR_ANY,
-        .sin_port = PORT_DEFAULT
+        .sin_port = htons(PORT_DEFAULT)
     };
     if ((status = bind(sfd, (const struct sockaddr *) &server_addr, addr_len)) < 0) {
         DEBUG_LOG("bind failed; %s\n", strerror(errno));
