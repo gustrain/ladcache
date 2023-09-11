@@ -67,7 +67,7 @@ int
 test_interactive(cache_t *c)
 {
    int status;
-   int max_len = MAX_PATH_LEN;
+   size_t max_len = MAX_PATH_LEN;
    char *input = malloc(MAX_PATH_LEN + 1);
    if (input == NULL) {
       return -ENOMEM;
