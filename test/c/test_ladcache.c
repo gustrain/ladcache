@@ -81,6 +81,7 @@ test_interactive(cache_t *c)
       ssize_t n = getline(&input, &max_len, stdin);
       fprintf(stderr, "\"%s\"", input);
       if (n == 1) { /* Empty input, only '\n'. */
+         DEBUG_LOG("continue\n");
          continue;
       }
 
@@ -94,6 +95,7 @@ test_interactive(cache_t *c)
       /* Submit the request. */
       if ((status = cache_get_submit(c->ustates, input)) < 0) {
          DEBUG_LOG(TEST_PREFIX "cache_get_submit failed; %s\n", strerror(-status));
+         DEBUG_LOG("continue\n");
          continue;
       }
 
@@ -108,6 +110,7 @@ test_interactive(cache_t *c)
       DEBUG_LOG(TEST_PREFIX "done (%lu ns)\n", (time_end.tv_nsec - time_start.tv_nsec));
 
       cache_release(c->ustates, out);
+      DEBUG_LOG("got to end\n");
    }
 
    return 0;
