@@ -116,11 +116,10 @@ int
 network_connect(in_addr_t ip)
 {
     struct sockaddr_in peer_addr = {
-        .sin_addr.s_addr = ip,
         .sin_family = AF_INET,
-        .sin_port = PORT_DEFAULT
+        .sin_addr.s_addr = htonl(ip),
+        .sin_port = htons(PORT_DEFAULT)
     };
-
 
     /* Open the socket. */
     int peer_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -631,7 +630,7 @@ registrar_loop(void *args)
                 DEBUG_LOG("unable to allocate peer record.\n");
                 goto fail;
             }
-            peer->ip = client_addr.sin_addr.s_addr;
+            peer->ip = ntohl(client_addr.sin_addr.s_addr);
             HASH_ADD_INT(c->peers, ip, peer);
             DEBUG_LOG("added %s to set of peers\n", inet_ntoa(client_addr.sin_addr));
         }
