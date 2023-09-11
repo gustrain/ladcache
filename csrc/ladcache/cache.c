@@ -944,8 +944,9 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
             DEBUG_LOG("cache_local_load failed\n");
             return status;
         }
-
         QUEUE_PUSH_SAFE(ustate->done, &ustate->done_lock, next, prev, pending);
+
+        return 0;
     }
 
     /* Check the remote cache. */
@@ -963,6 +964,8 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
            take care of itself and doesn't require management. */
         pthread_t _;
         assert(!pthread_create(&_, NULL, cache_remote_load, args));
+
+        return 0;
     }
 
     /* If not cached, issue IO. */
