@@ -174,7 +174,7 @@ network_get_message(int fd, message_t **out)
     }
 
     /* Read the rest of the message. */
-    while (temp = read(fd, ((void *) message->data) + bytes, len - bytes) != EOF && len - bytes > 0) {}
+    while ((temp = read(fd, ((void *) message->data) + bytes, len - bytes)) != EOF && len - bytes > 0) {}
     if (len - bytes != 0) {
         DEBUG_LOG("Expected %u bytes but got %ld.\n", len, bytes);
         free(message);
