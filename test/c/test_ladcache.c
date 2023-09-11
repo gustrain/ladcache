@@ -40,8 +40,6 @@
 #define DEFAULT_QDEPTH 64
 #define DEFAULT_USERS 1
 
-#define PROMPT ""
-
 #define CHECK_ARG_MUTEX(mode)                                                  \
    do {                                                                        \
       if (mode) {                                                              \
@@ -63,22 +61,13 @@ enum test_mode {
    N_MODES
 };
 
-/* Just like getline(), but reads only from stdin and displays a prompt. Returns
-   bytes read. */
-int
-get_input(char *buf)
-{
-   printf(PROMPT);
-   size_t max_len = MAX_PATH_LEN;
-   return getline(&buf, &max_len, stdin);
-}
-
 /* Interactive test mode. Allows user to specify files to be loaded. Returns 0
    on success, -errno on failure. */
 int
 test_interactive(cache_t *c)
 {
    int status;
+   int max_len = MAX_PATH_LEN;
    char *input = malloc(MAX_PATH_LEN + 1);
    if (input == NULL) {
       return -ENOMEM;
@@ -87,8 +76,8 @@ test_interactive(cache_t *c)
    /* Repeatedly get and load a filepath. */
    bool running = true;
    while (running) {
-      ssize_t n = get_input(input);
-      if (n == 1) {
+      ssize_t n = getline(&input, &max_len, stdin);
+      if (n == 1) { /* Empty input, only '\n'. */
          continue;
       }
 
