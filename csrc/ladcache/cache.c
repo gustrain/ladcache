@@ -1199,8 +1199,11 @@ cache_get_reap_wait(ustate_t *user, request_t **out)
 void
 cache_release(ustate_t *user, request_t *request)
 {
-    munmap(request->udata, request->size);
-    close(request->ufd_shm);
+    if (request->status == 0) {
+        /* ISSUE: Leaking resources on failure. Needs to be more granular. */
+        munmap(request->udata, request->size);
+        close(request->ufd_shm);
+    }
     QUEUE_PUSH_SAFE(user->cleanup, &user->cleanup_lock, next, prev, request);
 }
 
