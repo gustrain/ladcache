@@ -510,6 +510,7 @@ monitor_loop(void *args)
     /* Handle all incoming connections. */
     while (true) {
         int cfd = accept(lfd, (struct sockaddr *) &addr, (socklen_t *) &addr_len);
+        printf("Accepted connection from %s\n", inet_ntoa(addr.sin_addr));
         if (cfd >= 0) {
             /* Prepare arguments. */
             struct monitor_handle_connection_args *conn_args = malloc(
