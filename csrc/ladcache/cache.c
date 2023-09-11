@@ -117,8 +117,8 @@ network_connect(in_addr_t ip)
 {
     struct sockaddr_in peer_addr = {
         .sin_family = AF_INET,
-        .sin_addr.s_addr = htonl(ip),
-        .sin_port = htons(PORT_DEFAULT)
+        .sin_addr.s_addr = ip,
+        .sin_port = PORT_DEFAULT
     };
 
     /* Open the socket. */
@@ -262,8 +262,8 @@ cache_register(cache_t *c)
     /* Broadcast the message. */
     struct sockaddr_in addr = {
         .sin_family = AF_INET,
-        .sin_addr.s_addr = htonl(INADDR_BROADCAST),
-        .sin_port = htons(PORT_DEFAULT)
+        .sin_addr.s_addr = INADDR_BROADCAST,
+        .sin_port = PORT_DEFAULT
     };
     ssize_t bytes = sendto(broadcast_fd,
                            (void *) &header,
@@ -498,8 +498,8 @@ monitor_loop(void *args)
     /* Bind to PORT_DEFAULT. */
     struct sockaddr_in addr = {
         .sin_family = AF_INET,
-        .sin_addr.s_addr = htonl(INADDR_ANY),
-        .sin_port = htons(PORT_DEFAULT)
+        .sin_addr.s_addr = INADDR_ANY,
+        .sin_port = PORT_DEFAULT
     };
     socklen_t addr_len = sizeof(addr);
     if (bind(lfd, (struct sockaddr *)&addr, addr_len) < 0) {
@@ -581,8 +581,8 @@ registrar_loop(void *args)
     socklen_t addr_len = sizeof(struct sockaddr_in);
     struct sockaddr_in server_addr = {
         .sin_family = AF_INET,
-        .sin_addr.s_addr = htonl(INADDR_ANY),
-        .sin_port = htons(PORT_DEFAULT)
+        .sin_addr.s_addr = INADDR_ANY,
+        .sin_port = PORT_DEFAULT
     };
     if ((status = bind(sfd, (const struct sockaddr *) &server_addr, addr_len)) < 0) {
         DEBUG_LOG("bind failed; %s\n", strerror(errno));
