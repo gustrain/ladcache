@@ -623,14 +623,15 @@ registrar_loop(void *args)
 
         /* Add sender to our directory if it isn't already in it. */
         peer_t *peer = NULL;
-        HASH_FIND_INT(c->peers, &client_addr.sin_addr.s_addr, peer);
+        uint32_t peer_ip = ntohl(client_addr.sin_addr.s_addr);
+        HASH_FIND_INT(c->peers, &peer_ip, peer);
         if (peer == NULL) {
             peer_t *peer = malloc(sizeof(peer_t));
             if (peer == NULL) {
                 DEBUG_LOG("unable to allocate peer record.\n");
                 goto fail;
             }
-            peer->ip = ntohl(client_addr.sin_addr.s_addr);
+            peer->ip = peer_ip;
             HASH_ADD_INT(c->peers, ip, peer);
             DEBUG_LOG("added %s to set of peers\n", inet_ntoa(client_addr.sin_addr));
         }
