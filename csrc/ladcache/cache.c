@@ -376,6 +376,7 @@ int
 monitor_handle_request(message_t *message, cache_t *c, int fd)
 {
     DEBUG_LOG("monitor_handle_request\n");
+    print_header(message);
 
     struct sockaddr_in addr;
     socklen_t addr_size = sizeof(addr);
