@@ -830,7 +830,7 @@ cache_remote_load(void *args)
     if (response->header.type != TYPE_RSPN) {
         /* ISSUE: leaking this request. */
         DEBUG_LOG("Received an incorrect message type (type = 0x%hx)\n", response->header.type);
-        printf("Raw header: (length %ul) 0x", sizeof(response->header.raw));
+        printf("Raw header: (length %lu) 0x", sizeof(response->header.raw));
         for (int i = 0; i < sizeof(response->header.raw); i++) {
             printf("%hhx", response->header.raw[i]);
         }
