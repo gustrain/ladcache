@@ -360,6 +360,8 @@ cache_sync(cache_t *c)
 int
 monitor_handle_request(message_t *message, cache_t *c, int fd)
 {
+    DEBUG_LOG("monitor_handle_request\n");
+
     struct sockaddr_in addr;
     socklen_t addr_size = sizeof(addr);
     if (getpeername(fd, (struct sockaddr *) &addr, &addr_size) < 0) {
@@ -389,6 +391,8 @@ monitor_handle_request(message_t *message, cache_t *c, int fd)
 int
 monitor_handle_sync(message_t *message, cache_t *c, int fd)
 {
+    DEBUG_LOG("monitor_handle_sync\n");
+
     /* TODO. Verify filepaths are valid ('\0' terminated, etc.) */
 
     /* Figure out who we're talking to. */
