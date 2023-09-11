@@ -40,6 +40,8 @@
 #define DEFAULT_QDEPTH 64
 #define DEFAULT_USERS 1
 
+#define PROMPT ""
+
 #define CHECK_ARG_MUTEX(mode)                                                  \
    do {                                                                        \
       if (mode) {                                                              \
@@ -66,7 +68,7 @@ enum test_mode {
 int
 get_input(char *buf)
 {
-   printf(" > ");
+   printf(PROMPT);
    size_t max_len = MAX_PATH_LEN;
    return getline(&buf, &max_len, stdin);
 }
@@ -93,26 +95,25 @@ test_interactive(cache_t *c)
       /* Remove the newline. */
       input[n - 1] = '\0';
 
-      printf("loading %s...\n", input);
+      DEBUG_LOG("[TEST] loading %s...\n", input);
       struct timespec time_start;
       clock_gettime(CLOCK_REALTIME, &time_start);
 
       /* Submit the request. */
       if ((status = cache_get_submit(c->ustates, input)) < 0) {
          DEBUG_LOG("cache_get_submit failed; %s\n", strerror(-status));
-         exit(EXIT_FAILURE);
+         continue;
       }
 
       /* Retrieve the loaded file. */
       request_t *out;
       if ((status = cache_get_reap_wait(c->ustates, &out)) < 0) {
          DEBUG_LOG("cache_get_reap_wait failed; %s\n", strerror(-status));
-         exit(EXIT_FAILURE);
       }
 
       struct timespec time_end;
       clock_gettime(CLOCK_REALTIME, &time_end);
-      printf("done (%lu ns)\n", (time_end.tv_nsec - time_start.tv_nsec));
+      DEBUG_LOG("[TEST] done (%lu ns)\n", (time_end.tv_nsec - time_start.tv_nsec));
 
       cache_release(c->ustates, out);
    }
