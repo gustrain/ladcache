@@ -216,6 +216,8 @@ network_send_message(mtype_t type, int flags, void *data, uint32_t size, int fd)
     header.header.length = size;
 
     /* Send the header. */
+    DEBUG_LOG("Sending header...");
+    print_header(&header);
     ssize_t bytes;
     if ((bytes = send(fd, (void *) &header, sizeof(message_t), 0)) != sizeof(message_t)) {
         if (bytes < 0) {
