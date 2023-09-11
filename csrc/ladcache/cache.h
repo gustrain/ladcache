@@ -58,6 +58,9 @@ typedef enum {
 /* File load request (queue entry). Shared memory accessible by both API users
    and the ladcache loader process. */
 typedef struct file_request {
+    /* Request status. */
+    int status;   /* Status of request, 0 on success, -errno on failure. */
+
     /* File metadata. */
     size_t  size;                           /* Size of file data in bytes. */
     char    path[MAX_PATH_LEN + 1];         /* Path to file. */

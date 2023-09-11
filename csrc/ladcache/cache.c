@@ -777,13 +777,13 @@ cache_remote_contains(rcache_t *rc, char *path)
 
 /* Arguments to cache_remote_load. */
 struct cache_remote_load_args {
-    rcache_t *rc;
-    ustate_t *user;
+    rcache_t  *rc;
+    ustate_t  *user;
     request_t *request;
 };
 
 /* Thread target to request a file from a peer. Should be passed a malloc'd
-   cache_remote_load_args struct, which will be freed once arguments haev been
+   cache_remote_load_args struct, which will be freed once arguments have been
    parsed. Assumes that the caller has already removed REQUEST from USER's ready
    queue. The completed request will be placed into USER's done queue. */
 void *
@@ -801,14 +801,16 @@ cache_remote_load(void *args)
     if (loc == NULL) {
         /* ISSUE: leaking this request. */
         DEBUG_LOG("tried to load file that's not in the remote cache; %s\n", request->path);
-        return NULL;
+        request->status = -ENOENT;
+        goto done;
     }
 
     /* Connect to them. */
     int peer_fd = network_connect(loc->ip);
     if (peer_fd < 0) {
         DEBUG_LOG("network_connect failed; %s\n", strerror(-peer_fd));
-        return NULL;
+        request->status = peer_fd;
+        goto done;
     }
 
     /* Send them a request for the file. */
@@ -820,8 +822,9 @@ cache_remote_load(void *args)
                                       peer_fd);
     if (status < 0) {
         DEBUG_LOG("Failed to send message; %s\n", strerror(-status));
+        request->status = status;
         close(peer_fd);
-        return NULL;
+        goto done;
     }
 
     /* Wait for a response. */
@@ -831,23 +834,26 @@ cache_remote_load(void *args)
     if (status < 0) {
         /* ISSUE: leaking this request. */
         DEBUG_LOG("network_get_message failed; %s\n", strerror(-status));
-        return NULL;
+        request->status = status;
+        goto done;
     }
 
     /* Make sure we got a sensible response. */
     if (response->header.type != TYPE_RSPN) {
         /* ISSUE: leaking this request. */
         DEBUG_LOG("Received an incorrect message type (type = 0x%hx)\n", response->header.type);
+        request->status = status;
         free(response);
-        return NULL;
+        goto done;
     }
 
     /* Was the peer unable to fulfill the request? */
     if (response->header.unbl) {
         /* ISSUE: leaking this request. */
         DEBUG_LOG("%s unable to fulfill request for %s.\n", inet_ntoa((struct in_addr) {.s_addr = loc->ip}), request->path);
+        request->status = status;
         free(response);
-        return NULL;
+        goto done;
     }
 
     /* Allocate an shm object for the file data. Note it would be more efficient
@@ -858,8 +864,12 @@ cache_remote_load(void *args)
     shmify(request->path, request->shm_path, MAX_PATH_LEN + 1, MAX_SHM_PATH_LEN + 1);
     request->_lfd_shm = shm_alloc(request->shm_path, &request->_ldata, request->size);
     memcpy(request->_ldata, response->data, request->size);
+    QUEUE_PUSH_SAFE(user->done, &user->done_lock, next, prev, request);
     
     DEBUG_LOG("Received \"%s\" (%u bytes) from %s.\n", request->path, response->header.length, inet_ntoa((struct in_addr) {.s_addr = loc->ip}));
+
+   done:
+    QUEUE_PUSH_SAFE(user->done, &user->done_lock, next, prev, request);
     free(response);
     return NULL;
 }
@@ -878,8 +888,8 @@ manager_submit_io(ustate_t *ustate, request_t *r)
     /* Open the file. */
     r->_lfd_file = open(r->path, O_RDONLY | __O_DIRECT);
     if (r->_lfd_file < 0) {
-        DEBUG_LOG("open failed; %s\n", r->path);
-        return -ENOENT;
+        DEBUG_LOG("open failed; \"%s\":; %s\n", r->path, strerror(errno));
+        return -errno;
     }
 
     /* Get the size of the file, rounding the size up to the nearest multiple of
@@ -951,11 +961,9 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
 
     /* Check the local cache. */
     if (cache_local_contains(&c->lcache, pending->path)) {
-        int status = cache_local_load(&c->lcache, pending);
-        if (status < 0) {
-            /* ISSUE: we leak a request struct here. */
-            DEBUG_LOG("cache_local_load failed\n");
-            return status;
+        pending->status = cache_local_load(&c->lcache, pending);
+        if (pending->status < 0) {
+            DEBUG_LOG("cache_local_load failed; %s\n", strerror(-pending->status));
         }
         QUEUE_PUSH_SAFE(ustate->done, &ustate->done_lock, next, prev, pending);
 
@@ -984,7 +992,7 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
     /* If not cached, issue IO. */
     int status = manager_submit_io(ustate, pending);
     if (status < 0) {
-        DEBUG_LOG("manager_submit_io failed\n");
+        DEBUG_LOG("manager_submit_io failed; %s\n", strerror(-status));
         return status;
     }
 
@@ -1008,7 +1016,8 @@ manager_check_done(cache_t *c, ustate_t *ustate)
         if (c->lcache.used + request->size <= c->lcache.capacity) {
             lloc_t *loc = malloc(sizeof(lloc_t));
             if (loc == NULL) {
-                DEBUG_LOG("malloc fail\n");
+                DEBUG_LOG("Failed to allocate lloc_t struct\n");
+                request->status = -ENOMEM;
                 goto skip_cache;
             }
 
@@ -1035,7 +1044,6 @@ manager_check_done(cache_t *c, ustate_t *ustate)
         }
 
        skip_cache:
-        DEBUG_LOG("pushed %s to done\n", request->path);
         QUEUE_PUSH_SAFE(ustate->done, &ustate->done_lock, next, prev, request);
     }
 }
@@ -1151,6 +1159,11 @@ cache_get_reap(ustate_t *user, request_t **out)
     QUEUE_POP_SAFE(user->done, &user->done_lock, next, prev, r);
     if (r == NULL) {
         return -EAGAIN; /* Try again once request has been fulfilled. */
+    }
+
+    /* Check if the request failed. */
+    if (r->status < 0) {
+        return r->status;
     }
 
     /* Open the shm object. */
