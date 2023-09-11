@@ -832,7 +832,7 @@ cache_remote_load(void *args)
         DEBUG_LOG("Received an incorrect message type (type = 0x%hx)\n", response->header.type);
         printf("Raw header: 0x");
         for (int i = 0; i < sizeof(response->header.raw); i++) {
-            printf("%#1x", response->header.raw[i]);
+            printf("%hhx", response->header.raw[i]);
         }
         printf("\n");
         free(response);
