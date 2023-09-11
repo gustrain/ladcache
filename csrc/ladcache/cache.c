@@ -299,14 +299,14 @@ cache_sync(cache_t *c)
 
     /* Determine the sum of all filepath lengths. */
     uint32_t n_entries = 0;
-    size_t payload_len = 0;
+    size_t payload_len = sizeof(uint32_t);
     do {
         payload_len += strlen(loc->path) + 1; /* +1 for '\0' byte. */
         n_entries++;
     } while ((loc = loc->next) != NULL);
 
     /* Allocate our message payload. */
-    char *payload = malloc(sizeof(uint32_t) + payload_len);
+    char *payload = malloc(payload_len);
     if (payload == NULL) {
         DEBUG_LOG("Unable to allocate %lu bytes for sync payload.\n", payload_len);
         return -ENOMEM;
