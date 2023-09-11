@@ -79,23 +79,24 @@ test_interactive(cache_t *c)
    bool running = true;
    while (running) {
       ssize_t n = getline(&input, &max_len, stdin);
-      fprintf(stderr, "n = %ld, \"%s\"", n, input);
+      if (n < 0) {
+         DEBUG_LOG(TEST_PREFIX "failed to get test input; %s\n", strerror(errno));
+         exit(EXIT_FAILURE);
+      }
       if (n == 1) { /* Empty input, only '\n'. */
-         DEBUG_LOG("continue\n");
          continue;
       }
 
       /* Remove the newline. */
       input[n - 1] = '\0';
 
-      DEBUG_LOG(TEST_PREFIX "loading %s...\n", input);
+      DEBUG_LOG(TEST_PREFIX "Loading %s...\n", input);
       struct timespec time_start;
       clock_gettime(CLOCK_REALTIME, &time_start);
 
       /* Submit the request. */
       if ((status = cache_get_submit(c->ustates, input)) < 0) {
          DEBUG_LOG(TEST_PREFIX "cache_get_submit failed; %s\n", strerror(-status));
-         DEBUG_LOG("continue\n");
          continue;
       }
 
@@ -107,10 +108,9 @@ test_interactive(cache_t *c)
 
       struct timespec time_end;
       clock_gettime(CLOCK_REALTIME, &time_end);
-      DEBUG_LOG(TEST_PREFIX "done (%lu ns)\n", (time_end.tv_nsec - time_start.tv_nsec));
+      DEBUG_LOG(TEST_PREFIX "Done loading \"%s\" (%lu ns) (fail = %d)\n", input, (time_end.tv_nsec - time_start.tv_nsec), out->status != 0);
 
       cache_release(c->ustates, out);
-      DEBUG_LOG("got to end\n");
    }
 
    return 0;
