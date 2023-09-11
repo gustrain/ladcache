@@ -426,6 +426,7 @@ monitor_handle_sync(message_t *message, cache_t *c, int fd)
         strncpy(loc->path, filepath, fp_len + 1);
 
         /* Add to the remote cache directory. */
+        DEBUG_LOG("Adding \"%s\" to the remote cache directory\n", loc->path);
         HASH_ADD_STR(c->rcache.ht, path, loc);
 
         /* Move to the next filepath. */
@@ -629,7 +630,7 @@ registrar_loop(void *args)
 
         /* Add sender to our directory if it isn't already in it. */
         peer_t *peer = NULL;
-        uint32_t peer_ip = ntohl(client_addr.sin_addr.s_addr);
+        uint32_t peer_ip = client_addr.sin_addr.s_addr;
         HASH_FIND_INT(c->peers, &peer_ip, peer);
         if (peer == NULL) {
             peer_t *peer = malloc(sizeof(peer_t));
