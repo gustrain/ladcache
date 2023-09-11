@@ -412,6 +412,7 @@ monitor_handle_sync(message_t *message, cache_t *c, int fd)
         size_t fp_len = strlen(filepath);
         if ((void *) (filepath + fp_len + 1) >
             (void *) (message->data + message->header.length)) {
+            DEBUG_LOG("invalid string length\n");
             return -ERANGE;
         }
 
@@ -421,6 +422,7 @@ monitor_handle_sync(message_t *message, cache_t *c, int fd)
            for all entries, however this would be more difficult to track. */
         rloc_t *loc = malloc(sizeof(rloc_t) + fp_len + 1);
         if (loc == NULL) {
+            DEBUG_LOG("malloc failed\n");
             return -ENOMEM;
         }
         loc->ip = ip;
