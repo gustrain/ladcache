@@ -110,14 +110,14 @@ file_get_size(int fd)
 /*   NETWORK (manager scope)   */
 /* --------------------------- */
 
-/* Open a socket to IP (host byte order) on the default port. Returns FD on
+/* Open a socket to IP (network byte order) on the default port. Returns FD on
    success, -errno on failure. */
 int
 network_connect(in_addr_t ip)
 {
     struct sockaddr_in peer_addr = {
         .sin_family = AF_INET,
-        .sin_addr.s_addr = htonl(ip),
+        .sin_addr.s_addr = ip,
         .sin_port = htons(PORT_DEFAULT)
     };
 
@@ -128,10 +128,10 @@ network_connect(in_addr_t ip)
         DEBUG_LOG("Failed to open socket; %s\n", strerror(errno));
         return -errno;
     }
-    DEBUG_LOG("Opening connection to %s:%u...\n", inet_ntoa((struct in_addr) {.s_addr = ip}), PORT_DEFAULT);
+    DEBUG_LOG("Opening connection to %s:%u...\n", inet_ntoa((struct in_addr) {.s_addr = ntohl(ip)}), PORT_DEFAULT);
     if (connect(peer_fd, (struct sockaddr *) &peer_addr, sizeof(peer_addr)) < 0) {
         /* ISSUE: leaking this request. */
-        DEBUG_LOG("Failed to connect to %s; %s\n", inet_ntoa((struct in_addr) {.s_addr = ip}), strerror(errno));
+        DEBUG_LOG("Failed to connect to %s; %s\n", inet_ntoa((struct in_addr) {.s_addr = ntohl(ip)}), strerror(errno));
         close(peer_fd);
         return -errno;
     }
@@ -262,7 +262,7 @@ cache_register(cache_t *c)
     /* Broadcast the message. */
     struct sockaddr_in addr = {
         .sin_family = AF_INET,
-        .sin_addr.s_addr = INADDR_BROADCAST,
+        .sin_addr.s_addr = htonl(INADDR_BROADCAST),
         .sin_port = htons(PORT_DEFAULT)
     };
     ssize_t bytes = sendto(broadcast_fd,
@@ -498,7 +498,7 @@ monitor_loop(void *args)
     /* Bind to PORT_DEFAULT. */
     struct sockaddr_in addr = {
         .sin_family = AF_INET,
-        .sin_addr.s_addr = INADDR_ANY,
+        .sin_addr.s_addr = htonl(INADDR_ANY),
         .sin_port = htons(PORT_DEFAULT)
     };
     socklen_t addr_len = sizeof(addr);
@@ -581,7 +581,7 @@ registrar_loop(void *args)
     socklen_t addr_len = sizeof(struct sockaddr_in);
     struct sockaddr_in server_addr = {
         .sin_family = AF_INET,
-        .sin_addr.s_addr = INADDR_ANY,
+        .sin_addr.s_addr = htonl(INADDR_ANY),
         .sin_port = htons(PORT_DEFAULT)
     };
     if ((status = bind(sfd, (const struct sockaddr *) &server_addr, addr_len)) < 0) {

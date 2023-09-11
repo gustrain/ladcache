@@ -175,13 +175,13 @@ typedef struct {
 typedef struct remote_location {
     UT_hash_handle hh;
 
-    in_addr_t ip;       /* IPv4 address of file owner. Host byte order. */
+    in_addr_t ip;       /* IPv4 address of file owner. Network byte order. */
     char      path[];   /* Filepath. Hash table key. */
 } rloc_t;
 
 /* Peer record. */
 typedef struct peer_record {
-    in_addr_t ip;   /* Peer's IPv4 address. Host byte order. */
+    in_addr_t ip;   /* Peer's IPv4 address. Network byte order. */
 
     UT_hash_handle hh;
 } peer_t;
