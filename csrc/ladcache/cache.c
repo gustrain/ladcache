@@ -386,7 +386,7 @@ monitor_handle_request(message_t *message, cache_t *c, int fd)
     }
 
     /* Otherwise, reply with our cached file data. */
-    DEBUG_LOG("Sending %s %s (%u bytes).\n", inet_ntoa(addr.sin_addr), path, loc->size);
+    DEBUG_LOG("Sending %s %s (%u bytes).\n", inet_ntoa(addr.sin_addr), path, (uint32_t) loc->size);
     return network_send_message(TYPE_RSPN, FLAG_NONE, loc->data, loc->size, fd);
 }
 
