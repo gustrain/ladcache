@@ -166,9 +166,6 @@ network_get_message(int fd, message_t **out)
         return 0;
     }
 
-    /* Fix length byte order. */
-    message->header.length = ntohl(message->header.length);
-
     /* Allocate space for the rest of the message. */
     if (realloc(message, sizeof(message_t) + len) == NULL) {
         DEBUG_LOG("Unable to allocate an additional %u bytes for full message.\n", len);
@@ -200,7 +197,7 @@ network_send_message(mtype_t type, int flags, void *data, uint32_t size, int fd)
     /* Configure the header. */
     header.header.type = type;
     header.header.magic = HEADER_MAGIC;
-    header.header.length = htonl(size);
+    header.header.length = size;
 
     /* Send the header. */
     ssize_t bytes;
