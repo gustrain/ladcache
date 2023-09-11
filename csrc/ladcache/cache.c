@@ -407,6 +407,7 @@ monitor_handle_sync(message_t *message, cache_t *c, int fd)
     uint32_t n_entries = *((uint32_t *) message->data);
     DEBUG_LOG("SYNC has %u entries\n", n_entries);
     char *filepath = ((char *) message->data) + sizeof(uint32_t);
+    DEBUG_LOG("Filepath: %s\n", filepath);
     for (uint32_t i = 0; i < n_entries; i++) {
         /* Check string is in valid memory range. */
         size_t fp_len = strlen(filepath);
