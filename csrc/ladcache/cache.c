@@ -442,6 +442,8 @@ struct monitor_handle_connection_args {
 void *
 monitor_handle_connection(void *args)
 {
+    DEBUG_LOG("monitor_handle_connection\n");
+
     /* Get the arguments passed to us. */
     cache_t *c = ((struct monitor_handle_connection_args *) args)->c;
     int peer_fd = ((struct monitor_handle_connection_args *) args)->peer_fd;
@@ -524,6 +526,7 @@ monitor_loop(void *args)
 
             /* This thread will terminate gracefully on its own and we don't
                need to track it. */
+            DEBUG_LOG("spawning thread for connection\n");
             pthread_t _;
             pthread_create(&_, NULL, monitor_handle_connection, conn_args);
         }
