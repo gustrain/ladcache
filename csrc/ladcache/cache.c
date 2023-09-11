@@ -888,7 +888,7 @@ manager_submit_io(ustate_t *ustate, request_t *r)
     /* Open the file. */
     r->_lfd_file = open(r->path, O_RDONLY | __O_DIRECT);
     if (r->_lfd_file < 0) {
-        DEBUG_LOG("open failed; \"%s\":; %s\n", r->path, strerror(errno));
+        DEBUG_LOG("open failed; \"%s\"; %s\n", r->path, strerror(errno));
         return -errno;
     }
 
@@ -992,6 +992,8 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
     /* If not cached, issue IO. */
     int status = manager_submit_io(ustate, pending);
     if (status < 0) {
+        pending->status = status;
+        QUEUE_PUSH_SAFE(ustate->done, &ustate->done_lock, next, prev, pending);
         DEBUG_LOG("manager_submit_io failed; %s\n", strerror(-status));
         return status;
     }
