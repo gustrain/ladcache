@@ -79,7 +79,7 @@ test_interactive(cache_t *c)
    bool running = true;
    while (running) {
       ssize_t n = getline(&input, &max_len, stdin);
-      printf("\"%s\"", input);
+      fprintf(stderr, "\"%s\"", input);
       if (n == 1) { /* Empty input, only '\n'. */
          continue;
       }
