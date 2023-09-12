@@ -162,7 +162,7 @@ network_get_message(int fd, message_t **out)
     uint32_t len;
 
     /* Get the request header. */
-    LOG(LOG_DEBUG, "malloc(%lu)", sizeof(message_t));
+    LOG(LOG_DEBUG, "malloc(%lu)\n", sizeof(message_t));
     message_t *message = malloc(sizeof(message_t));
     if ((bytes = read(fd, (void *) message, sizeof(message_t))) != sizeof(message_t)) {
         LOG(LOG_WARNING, "Received a message that was too short (%ld bytes).\n", bytes);
@@ -533,7 +533,7 @@ monitor_loop(void *args)
         int cfd = accept(lfd, (struct sockaddr *) &addr, (socklen_t *) &addr_len);
         if (cfd >= 0) {
             /* Prepare arguments. */
-            LOG(LOG_DEBUG, "malloc(%lu)", sizeof(struct monitor_handle_connection_args));
+            LOG(LOG_DEBUG, "malloc(%lu)\n", sizeof(struct monitor_handle_connection_args));
             struct monitor_handle_connection_args *conn_args = malloc(
                 sizeof(struct monitor_handle_connection_args)
             );
@@ -648,7 +648,7 @@ registrar_loop(void *args)
         uint32_t peer_ip = client_addr.sin_addr.s_addr;
         HASH_FIND_INT(c->peers, &peer_ip, peer);
         if (peer == NULL) {
-            LOG(LOG_DEBUG, "malloc(%lu)", sizeof(peer_t));
+            LOG(LOG_DEBUG, "malloc(%lu)\n", sizeof(peer_t));
             peer_t *peer = malloc(sizeof(peer_t));
             if (peer == NULL) {
                 LOG(LOG_CRITICAL, "Failed to allocate peer record.\n");
@@ -719,7 +719,7 @@ cache_local_store(lcache_t *lc, char *path, uint8_t *data, size_t size)
     }
 
     /* Get a new location record. */
-    LOG(LOG_DEBUG, "malloc(%lu)", sizeof(lloc_t));
+    LOG(LOG_DEBUG, "malloc(%lu)\n", sizeof(lloc_t));
     lloc_t *loc = malloc(sizeof(lloc_t));
     if (loc == NULL) {
         LOG(LOG_ERROR, "Failed to allocate lloc_t struct.\n");
@@ -978,7 +978,7 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
     /* Check the remote cache. */
     if (cache_remote_contains(&c->rcache, pending->path)) {
         /* Prepare arguments for cache_remote_load. */
-        LOG(LOG_DEBUG, "malloc(%lu)", sizeof(struct cache_remote_load_args));
+        LOG(LOG_DEBUG, "malloc(%lu)\n", sizeof(struct cache_remote_load_args));
         struct cache_remote_load_args *args = malloc(sizeof(struct cache_remote_load_args));
         if (args == NULL) {
             return -ENOMEM;
@@ -1022,7 +1022,7 @@ manager_check_done(cache_t *c, ustate_t *ustate)
 
         /* Try to cache this file. */
         if (c->lcache.used + request->size <= c->lcache.capacity) {
-            LOG(LOG_DEBUG, "malloc(%lu)", sizeof(lloc_t));
+            LOG(LOG_DEBUG, "malloc(%lu)\n", sizeof(lloc_t));
             lloc_t *loc = malloc(sizeof(lloc_t));
             if (loc == NULL) {
                 LOG(LOG_ERROR, "Failed to allocate lloc_t struct.\n");
