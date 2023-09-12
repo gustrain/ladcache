@@ -379,7 +379,7 @@ cache_sync(cache_t *c)
     pthread_spin_unlock(&c->peer_lock);
 
     assert(*before == 0x88);
-    assert(*after = 0x99);
+    assert(*after == 0x99);
 
     c->lcache.n_unsynced = 0;
     free(__payload);
