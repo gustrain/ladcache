@@ -324,20 +324,21 @@ cache_sync(cache_t *c)
     } while ((loc = loc->next) != NULL);
 
     /* Allocate our message payload. */
-    LOG(LOG_DEBUG, "malloc(%lu)\n", payload_len);
+    LOG(LOG_DEBUG, "malloc(%lu)\n", payload_len + 2);
     char *__payload = malloc(payload_len + 2);
     char *before = __payload;
-    char *after = __payload + payload_len + 1;
     char *payload = __payload + 1;
+    char *after = payload + payload_len + 1;
 
     *before = 0x88;
     *after = 0x99;
 
-    if (payload == NULL) {
+    if (__payload == NULL) {
         LOG(LOG_ERROR, "Unable to allocate %lu bytes for sync payload.\n", payload_len);
         return -ENOMEM;
     }
     *((uint32_t *) payload) = n_entries;
+    DEBUG_LOG(LOG_DEBUG, "n_entries = %u\n", n_entries);
 
     /* Write all of the filepaths and clear the unsynced list. */
     char *fp_dest = payload + sizeof(uint32_t);
