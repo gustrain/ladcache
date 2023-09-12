@@ -338,7 +338,7 @@ cache_sync(cache_t *c)
         return -ENOMEM;
     }
     *((uint32_t *) payload) = n_entries;
-    DEBUG_LOG(LOG_DEBUG, "n_entries = %u\n", n_entries);
+    LOG(LOG_DEBUG, "n_entries = %u\n", n_entries);
 
     /* Write all of the filepaths and clear the unsynced list. */
     char *fp_dest = payload + sizeof(uint32_t);
