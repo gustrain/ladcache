@@ -21,6 +21,8 @@
    SOFTWARE.
    */
 
+#define __STDC_WANT_LIB_EXT1__ 1
+
 #include "cache.h"
 #include "../utils/uthash.h"
 #include "../utils/alloc.h"
@@ -78,6 +80,24 @@ shmify(char *in, char *out, size_t in_length, size_t out_length)
             break;
         }
     }
+}
+
+/* An implementation of strncpy_s, i.e., strncpy that doesn't clobber the
+   remainder of the destination buffer with zeros. Modified from example given
+   at: https://linux.die.net/man/3/strncpy. */
+char *
+strncpy_s(char *dest, const char *src, size_t n)
+{
+    size_t i;
+
+    for (i = 0; i < n && src[i] != '\0'; i++) {
+        dest[i] = src[i];
+    }
+    if (i < n) {
+        dest[i] = '\0';
+    }
+
+    return dest;
 }
 
 /* On success, returns the size of a file in bytes. On failure, returns -errno
@@ -324,30 +344,21 @@ cache_sync(cache_t *c)
     } while ((loc = loc->next) != NULL);
 
     /* Allocate our message payload. */
-    #define FOO 32
-    LOG(LOG_DEBUG, "malloc(%lu)\n", payload_len + FOO);
-    char *__payload = malloc(payload_len + FOO);
-    char *before = __payload;
-    char *payload = __payload + 1;
-    char *after = payload + payload_len;
+    LOG(LOG_DEBUG, "malloc(%lu)\n", payload_len);
+    char *payload = malloc(payload_len);
 
-    *before = 0x88;
-    memset(after, 0x99, FOO);
-
-
-    if (__payload == NULL) {
+    if (payload == NULL) {
         LOG(LOG_ERROR, "Unable to allocate %lu bytes for sync payload.\n", payload_len);
         return -ENOMEM;
     }
     *((uint32_t *) payload) = n_entries;
-    LOG(LOG_DEBUG, "n_entries = %u\n", n_entries);
 
     /* Write all of the filepaths and clear the unsynced list. */
     char *fp_dest = payload + sizeof(uint32_t);
     do {
         QUEUE_POP(c->lcache.unsynced, next, prev, loc);
         assert(fp_dest + strlen(loc->path) + 1 <= payload + payload_len);
-        strncpy(fp_dest, loc->path, MAX_PATH_LEN + 1);
+        strncpy_s(fp_dest, loc->path, MAX_PATH_LEN + 1);
         fp_dest += strlen(loc->path) + 1; /* +1 for '\0' byte. */
     } while (c->lcache.unsynced != NULL);
 
@@ -360,7 +371,7 @@ cache_sync(cache_t *c)
         if (peer_fd < 0) {
             LOG(LOG_ERROR, "network_connect failed; %s\n", strerror(-peer_fd));
             pthread_spin_unlock(&c->peer_lock);
-            free(__payload);
+            free(payload);
             return peer_fd;
         }
 
@@ -374,18 +385,15 @@ cache_sync(cache_t *c)
         if (status < 0) {
             LOG(LOG_ERROR, "Failed to send sync message; %s\n", strerror(-status));
             pthread_spin_unlock(&c->peer_lock);
-            free(__payload);
+            free(payload);
             return status;
         }
         close(peer_fd);
     };
     pthread_spin_unlock(&c->peer_lock);
 
-    assert(*before == 0x88);
-    assert(*after == 0x99);
-
     c->lcache.n_unsynced = 0;
-    free(__payload);
+    free(payload);
     return 0;
 }
 
@@ -456,7 +464,7 @@ monitor_handle_sync(message_t *message, cache_t *c, int fd)
             return -ENOMEM;
         }
         loc->ip = ip;
-        strncpy(loc->path, filepath, fp_len + 1);
+        strncpy_s(loc->path, filepath, fp_len + 1);
 
         /* Add to the remote cache directory. */
         LOG(LOG_DEBUG, "Adding \"%s\" to the remote cache directory\n", loc->path);
@@ -756,7 +764,7 @@ cache_local_store(lcache_t *lc, char *path, uint8_t *data, size_t size)
     memcpy(loc->data, data, size);
 
     /* Insert into hash table. */
-    strncpy(loc->path, path, MAX_PATH_LEN + 1);
+    strncpy_s(loc->path, path, MAX_PATH_LEN + 1);
     HASH_ADD_STR(lc->ht, path, loc);
 
     return 0;
@@ -1053,8 +1061,8 @@ manager_check_done(cache_t *c, ustate_t *ustate)
                 .shm_fd = request->_lfd_shm,
                 .size = request->size,
             };
-            strncpy(loc->path, request->path, MAX_PATH_LEN + 1);
-            strncpy(loc->shm_path, request->shm_path, MAX_SHM_PATH_LEN + 1);
+            strncpy_s(loc->path, request->path, MAX_PATH_LEN + 1);
+            strncpy_s(loc->shm_path, request->shm_path, MAX_SHM_PATH_LEN + 1);
 
             /* Add to the hash table indexed by PATH. */
             HASH_ADD_STR(c->lcache.ht, path, loc);
@@ -1165,7 +1173,7 @@ cache_get_submit(ustate_t *user, char *path)
         return -EAGAIN; /* Try again once completed requests have been freed. */
     }
     memset(request, 0, sizeof(request_t));
-    strncpy(request->path, path, MAX_PATH_LEN + 1);
+    strncpy_s(request->path, path, MAX_PATH_LEN + 1);
     shmify(request->path, request->shm_path, MAX_PATH_LEN + 1, MAX_SHM_PATH_LEN + 1);
 
     /* Submit request to the monitor. */
