@@ -40,7 +40,7 @@
 #define DEFAULT_QDEPTH 64
 #define DEFAULT_USERS 1
 
-#define TEST_PREFIX "[TEST] "
+#define LOG(level, fmt, ...) DEBUG_LOG(SCOPE_EXT, level, fmt, ## __VA_ARGS__)
 
 #define CHECK_ARG_MUTEX(mode)                                                  \
    do {                                                                        \
@@ -80,7 +80,7 @@ test_interactive(cache_t *c)
    while (running) {
       ssize_t n = getline(&input, &max_len, stdin);
       if (n < 0) {
-         DEBUG_LOG(TEST_PREFIX "failed to get test input; %s\n", strerror(errno));
+         LOG(LOG_CRITICAL, "Failed to get test input; %s\n", strerror(errno));
          exit(EXIT_FAILURE);
       }
       if (n == 1) { /* Empty input, only '\n'. */
@@ -90,25 +90,25 @@ test_interactive(cache_t *c)
       /* Remove the newline. */
       input[n - 1] = '\0';
 
-      DEBUG_LOG(TEST_PREFIX "Loading %s...\n", input);
+      LOG(LOG_INFO, "Loading %s...\n", input);
       struct timespec time_start;
       clock_gettime(CLOCK_REALTIME, &time_start);
 
       /* Submit the request. */
       if ((status = cache_get_submit(c->ustates, input)) < 0) {
-         DEBUG_LOG(TEST_PREFIX "cache_get_submit failed; %s\n", strerror(-status));
+         LOG(LOG_ERROR, "cache_get_submit failed; %s\n", strerror(-status));
          continue;
       }
 
       /* Retrieve the loaded file. */
       request_t *out;
       if ((status = cache_get_reap_wait(c->ustates, &out)) < 0) {
-         DEBUG_LOG(TEST_PREFIX "cache_get_reap_wait failed; %s\n", strerror(-status));
+         LOG(LOG_ERROR, "cache_get_reap_wait failed; %s\n", strerror(-status));
       }
 
       struct timespec time_end;
       clock_gettime(CLOCK_REALTIME, &time_end);
-      DEBUG_LOG(TEST_PREFIX "Done loading \"%s\" (%lu ns) (fail = %d)\n", input, (time_end.tv_nsec - time_start.tv_nsec), out->status != 0);
+      LOG(LOG_INFO, "Done loading \"%s\" (%lu ns) (fail = %d)\n", input, (time_end.tv_nsec - time_start.tv_nsec), out->status != 0);
 
       cache_release(c->ustates, out);
    }
@@ -137,17 +137,17 @@ main(int argc, char **argv)
       switch (opt) {
          case 'd': /* Directory mode. */
             CHECK_ARG_MUTEX(mode);
-            printf("directory mode...\n");
+            LOG(LOG_INFO, "Directory mode...\n");
             mode = MODE_DIRECTORY;
             path = optarg;
             break;
          case 'i': /* Interactive mode. */
             CHECK_ARG_MUTEX(mode);
-            printf("interactive mode...\n");
+            LOG(LOG_INFO, "Interactive mode...\n");
             mode = MODE_INTERACTIVE;
             break;
          case '?':
-            printf("Unknown option: %c\n", optopt);
+            LOG(LOG_WARNING, "Unknown option: %c\n", optopt);
             break;
       }
    }
@@ -155,33 +155,35 @@ main(int argc, char **argv)
    /* Create the cache. */
    cache_t *cache = cache_new();
    if ((status = cache_init(cache, DEFAULT_CAPACITY, DEFAULT_QDEPTH, DEFAULT_MAX_UNSYNCED, DEFAULT_USERS)) < 0) {
-      DEBUG_LOG("cache_init failed; %s\n", strerror(-status));
+      LOG(LOG_CRITICAL, "cache_init failed; %s\n", strerror(-status));
       return -status;
    }
 
    /* Start the cache threads. */
    if ((status = cache_start(cache)) < 0) {
-      DEBUG_LOG("cache_start failed; %s\n", strerror(-status));
+      LOG(LOG_CRITICAL, "cache_start failed; %s\n", strerror(-status));
       return -status;
    }
 
    /* Select test based on input. */
    switch (mode) {
       case MODE_INTERACTIVE:
-         if ((status = test_interactive(cache)) < 0) {
-            DEBUG_LOG("test_interactive failed; %s\n", strerror(-status));
-            return -status;
+         status = test_interactive(cache);
+         if (status < 0) {
+            LOG(LOG_CRITICAL, "test_interactive failed; %s\n", strerror(-status));
+         } else {
+            LOG(LOG_INFO, "test_interactive passed.\n");
          }
       case MODE_DIRECTORY:
          if ((status = test_directory(cache, path)) < 0) {
-            DEBUG_LOG("test_directory failed; %s\n", strerror(-status));
-            return -status;
+            LOG(LOG_CRITICAL, "test_directory failed; %s\n", strerror(-status));
+         } else {
+            LOG(LOG_INFO, "test_directory passed.\n");
          }
       default:
-         printf("error: invalid test mode\n");
+         LOG(LOG_CRITICAL, "Invalid test mode.\n");
          return EINVAL;
    }
 
-   NOT_REACHED();
-   return 0;
+   return -status;
 }

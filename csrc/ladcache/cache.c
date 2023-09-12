@@ -50,6 +50,8 @@
 #define SOCKET_TIMEOUT_S (5)
 #define REGISTER_PERIOD_S (5)
 
+#define LOG(level, fmt, ...) DEBUG_LOG(SCOPE_INT, level, fmt, ## __VA_ARGS__)
+
 #define MIN(a, b) ((a) > (b) ? (a) : (b))
 #define NOT_REACHED()       \
     do {                    \
@@ -137,12 +139,12 @@ network_connect(in_addr_t ip)
     int peer_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (peer_fd < 0) {
         /* ISSUE: leaking this request. */
-        DEBUG_LOG("Failed to open socket; %s\n", strerror(errno));
+        LOG(LOG_ERROR, "Failed to open socket; %s\n", strerror(errno));
         return -errno;
     }
     if (connect(peer_fd, (struct sockaddr *) &peer_addr, sizeof(peer_addr)) < 0) {
         /* ISSUE: leaking this request. */
-        DEBUG_LOG("Failed to connect to %s; %s\n", inet_ntoa(peer_addr.sin_addr), strerror(errno));
+        LOG(LOG_ERROR, "Failed to connect to %s; %s\n", inet_ntoa(peer_addr.sin_addr), strerror(errno));
         close(peer_fd);
         return -errno;
     }
@@ -162,14 +164,14 @@ network_get_message(int fd, message_t **out)
     /* Get the request header. */
     message_t *message = malloc(sizeof(message_t));
     if ((bytes = read(fd, (void *) message, sizeof(message_t))) != sizeof(message_t)) {
-        DEBUG_LOG("Received a message that was too short (%ld bytes).\n", bytes);
+        LOG(LOG_WARNING, "Received a message that was too short (%ld bytes).\n", bytes);
         free(message);
         return -EBADMSG;
     }
 
     /* Sanity check. */
     if (message->header.magic != HEADER_MAGIC) {
-        DEBUG_LOG("Received message with invalid header magic (0x%hx, should be 0x%hx).\n", message->header.magic, HEADER_MAGIC);
+        LOG(LOG_WARNING, "Received message with invalid header magic (0x%hx, should be 0x%hx).\n", message->header.magic, HEADER_MAGIC);
         free(message);
         return -EBADMSG;
     }
@@ -179,7 +181,7 @@ network_get_message(int fd, message_t **out)
 
     /* Allocate space for the rest of the message. */
     if ((message = realloc(message, sizeof(message_t) + len)) == NULL) {
-        DEBUG_LOG("Unable to allocate an additional %u bytes for full message.\n", len);
+        LOG(LOG_ERROR, "Unable to allocate an additional %u bytes for full message.\n", len);
         free(message);
         return -ENOMEM;
     }
@@ -190,7 +192,7 @@ network_get_message(int fd, message_t **out)
         bytes += temp;
     }
     if (len - bytes != 0) {
-        DEBUG_LOG("Expected %u bytes but got %ld.\n", len, bytes);
+        LOG(LOG_WARNING, "Expected %u bytes but got %ld.\n", len, bytes);
         free(message);
         return -EBADMSG;
     }
@@ -218,10 +220,10 @@ network_send_message(mtype_t type, int flags, void *data, uint32_t size, int fd)
     ssize_t bytes;
     if ((bytes = send(fd, (void *) &header, sizeof(message_t), 0)) != sizeof(message_t)) {
         if (bytes < 0) {
-            DEBUG_LOG("Failed to send header; %s\n", strerror(errno));
+            LOG(LOG_ERROR, "Failed to send header; %s\n", strerror(errno));
             return -errno;
         } else {
-            DEBUG_LOG("Failed to send entire header (%ld/%lu bytes sent).\n", bytes, sizeof(message_t));
+            LOG(LOG_ERROR, "Failed to send entire header (%ld/%lu bytes sent).\n", bytes, sizeof(message_t));
             return -EAGAIN;
         }
     }
@@ -229,10 +231,10 @@ network_send_message(mtype_t type, int flags, void *data, uint32_t size, int fd)
     /* Send the data. */
     if ((bytes = send(fd, data, size, 0)) != size) {
         if (bytes < 0) {
-            DEBUG_LOG("Failed to send payload; %s\n", strerror(errno));
+            LOG(LOG_ERROR, "Failed to send payload; %s\n", strerror(errno));
             return -errno;
         } else {
-            DEBUG_LOG("Failed to send entire payload (%ld/%u bytes sent).\n", bytes, size);
+            LOG(LOG_ERROR, "Failed to send entire payload (%ld/%u bytes sent).\n", bytes, size);
             return -EAGAIN;
         }
     }
@@ -259,7 +261,7 @@ cache_register(cache_t *c)
                             &broadcast,
                             sizeof(broadcast));
     if (status < 0) {
-        DEBUG_LOG("failed to configure socket for broadcast; %s\n", strerror(errno));
+        LOG(LOG_ERROR, "Failed to configure socket for broadcast; %s\n", strerror(errno));
         return -errno;
     }
 
@@ -288,10 +290,10 @@ cache_register(cache_t *c)
                            sizeof(addr));
     if (bytes != sizeof(message_t)) {
         if (bytes < 0) {
-            DEBUG_LOG("failed to broadcast hello; %s\n", strerror(errno));
+            LOG(LOG_ERROR, "Failed to broadcast hello; %s\n", strerror(errno));
             return -errno;
         } else {
-            DEBUG_LOG("failed to broadcast entire message (%ld/%lu bytes).\n", bytes, sizeof(message_t));
+            LOG(LOG_ERROR, "Failed to broadcast entire message (%ld/%lu bytes).\n", bytes, sizeof(message_t));
             return -EBADMSG;
         }
     }
@@ -323,7 +325,7 @@ cache_sync(cache_t *c)
     /* Allocate our message payload. */
     char *payload = malloc(payload_len);
     if (payload == NULL) {
-        DEBUG_LOG("Unable to allocate %lu bytes for sync payload.\n", payload_len);
+        LOG(LOG_ERROR, "Unable to allocate %lu bytes for sync payload.\n", payload_len);
         return -ENOMEM;
     }
     *((uint32_t *) payload) = n_entries;
@@ -343,20 +345,20 @@ cache_sync(cache_t *c)
         /* Open the socket. */
         int peer_fd = network_connect(peer->ip);
         if (peer_fd < 0) {
-            DEBUG_LOG("network_connect failed; %s\n", strerror(-peer_fd));
+            LOG(LOG_ERROR, "network_connect failed; %s\n", strerror(-peer_fd));
             free(payload);
             return peer_fd;
         }
 
         /* Send the message. */
-        DEBUG_LOG("Sending SYNC to %s with %u files.\n", inet_ntoa((struct in_addr) {.s_addr = peer->ip}), n_entries);
+        LOG(LOG_DEBUG, "Sending SYNC to %s with %u files.\n", inet_ntoa((struct in_addr) {.s_addr = peer->ip}), n_entries);
         int status = network_send_message(TYPE_SYNC,
                                           FLAG_NONE,
                                           (void *) payload,
                                           payload_len,
                                           peer_fd);
         if (status < 0) {
-            DEBUG_LOG("failed to send sync message; %s\n", strerror(-status));
+            LOG(LOG_ERROR, "Failed to send sync message; %s\n", strerror(-status));
             free(payload);
             return status;
         }
@@ -377,25 +379,25 @@ monitor_handle_request(message_t *message, cache_t *c, int fd)
     struct sockaddr_in addr;
     socklen_t addr_size = sizeof(addr);
     if (getpeername(fd, (struct sockaddr *) &addr, &addr_size) < 0) {
-        DEBUG_LOG("getpeername failed; %s\n", strerror(-errno));
+        LOG(LOG_ERROR, "getpeername failed; %s\n", strerror(-errno));
         return -errno;
     }
 
     /* TODO. Verify the filepath is the correct length (i.e., \0 terminated). */
     char *path = (char *) message->data;
-    DEBUG_LOG("Received request from %s for \"%s\".\n", inet_ntoa(addr.sin_addr), message->data);
+    LOG(LOG_INFO, "Received request from %s for \"%s\".\n", inet_ntoa(addr.sin_addr), message->data);
 
     /* Try to retrieve the requested file from our cache. If uncached, reply
        that we are unable to fulfill their request. */
     lloc_t *loc;
     HASH_FIND_STR(c->lcache.ht, (char *) message->data, loc);
     if (loc == NULL) {
-        DEBUG_LOG("File %s is not cached.\n", message->data);
+        LOG(LOG_WARNING, "File %s is not cached.\n", message->data);
         return network_send_message(TYPE_RSPN, FLAG_UNBL, NULL, 0, fd);
     }
 
     /* Otherwise, reply with our cached file data. */
-    DEBUG_LOG("Sending %s %s (%u bytes).\n", inet_ntoa(addr.sin_addr), path, (uint32_t) loc->size);
+    LOG(LOG_DEBUG, "Sending %s %s (%u bytes).\n", inet_ntoa(addr.sin_addr), path, (uint32_t) loc->size);
     return network_send_message(TYPE_RSPN, FLAG_NONE, loc->data, loc->size, fd);
 }
 
@@ -421,7 +423,7 @@ monitor_handle_sync(message_t *message, cache_t *c, int fd)
         size_t fp_len = strlen(filepath);
         if ((void *) (filepath + fp_len + 1) >
             (void *) (message->data + message->header.length)) {
-            DEBUG_LOG("invalid string length\n");
+            LOG(LOG_WARNING, "Invalid string length.\n");
             return -ERANGE;
         }
 
@@ -431,20 +433,20 @@ monitor_handle_sync(message_t *message, cache_t *c, int fd)
            for all entries, however this would be more difficult to track. */
         rloc_t *loc = malloc(sizeof(rloc_t) + fp_len + 1);
         if (loc == NULL) {
-            DEBUG_LOG("malloc failed\n");
+            LOG(LOG_ERROR, "Failed to allocate lloc_t struct.\n");
             return -ENOMEM;
         }
         loc->ip = ip;
         strncpy(loc->path, filepath, fp_len + 1);
 
         /* Add to the remote cache directory. */
-        DEBUG_LOG("Adding \"%s\" to the remote cache directory\n", loc->path);
+        LOG(LOG_DEBUG, "Adding \"%s\" to the remote cache directory\n", loc->path);
         HASH_ADD_STR(c->rcache.ht, path, loc);
 
         /* Move to the next filepath. */
         filepath += strlen(filepath) + 1;
     }
-    DEBUG_LOG("Received SYNC from %s with %u files.\n", inet_ntoa(addr.sin_addr), n_entries);
+    LOG(LOG_INFO, "Received SYNC from %s with %u files.\n", inet_ntoa(addr.sin_addr), n_entries);
 
     return 0;
 }
@@ -467,7 +469,7 @@ monitor_handle_connection(void *args)
     message_t *message;
     int status = network_get_message(peer_fd, &message);
     if (status < 0) {
-        DEBUG_LOG("network_get_message failed; %s\n", strerror(-status));
+        LOG(LOG_WARNING, "network_get_message failed; %s\n", strerror(-status));
         close(peer_fd);
         return NULL;
     }
@@ -477,7 +479,7 @@ monitor_handle_connection(void *args)
         case TYPE_RQST: monitor_handle_request(message, c, peer_fd); break;
         case TYPE_SYNC: monitor_handle_sync(message, c, peer_fd); break;
         default:
-            DEBUG_LOG("Received an invalid first message; type = 0x%hx.\n", message->header.type);
+            LOG(LOG_WARNING, "Received an invalid message; type = 0x%hx.\n", message->header.type);
     }
 
     free(message);
@@ -501,7 +503,7 @@ monitor_loop(void *args)
     /* Allow address to be re-used (needed?) */
     int opt = 1;
     if (setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
-        DEBUG_LOG("setsockopt failed; %s\n", strerror(errno));
+        LOG(LOG_CRITICAL, "Failed to configure socket; %s\n", strerror(errno));
         return NULL;
     }
 
@@ -513,13 +515,13 @@ monitor_loop(void *args)
     };
     socklen_t addr_len = sizeof(addr);
     if (bind(lfd, (struct sockaddr *)&addr, addr_len) < 0) {
-        DEBUG_LOG("bind failed; %s\n", strerror(errno));
+        LOG(LOG_CRITICAL, "Failed to bind socket; %s\n", strerror(errno));
         return NULL;
     }
 
     /* Start listening. */
     if (listen(lfd, MAX_QUEUE_REQUESTS)) {
-        DEBUG_LOG("listen failed; %s\n", strerror(errno));
+        LOG(LOG_CRITICAL, "Failed to listen to socket; %s\n", strerror(errno));
         return NULL;
     }
 
@@ -532,7 +534,7 @@ monitor_loop(void *args)
                 sizeof(struct monitor_handle_connection_args)
             );
             if (conn_args == NULL) {
-                DEBUG_LOG("failed to allocate arguments for connection handler.\n");
+                LOG(LOG_CRITICAL, "failed to allocate arguments for connection handler.\n");
                 return NULL;
             }
             conn_args->c = c;
@@ -572,7 +574,7 @@ registrar_loop(void *args)
     /* Create listening socket. */
     int sfd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sfd < 0) {
-        DEBUG_LOG("Failed to create registrar listening socket; %s\n", strerror(errno));
+        LOG(LOG_CRITICAL, "Failed to create registrar listening socket; %s\n", strerror(errno));
         return NULL;
     }
 
@@ -582,7 +584,7 @@ registrar_loop(void *args)
         .tv_usec = 0,
     };
     if ((status = setsockopt(sfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv))) < 0) {
-        DEBUG_LOG("Failed to set registrar socket timeout; %s\n", strerror(errno));
+        LOG(LOG_CRITICAL, "Failed to set registrar socket timeout; %s\n", strerror(errno));
         goto fail;
     }
 
@@ -594,7 +596,7 @@ registrar_loop(void *args)
         .sin_port = htons(PORT_DEFAULT)
     };
     if ((status = bind(sfd, (const struct sockaddr *) &server_addr, addr_len)) < 0) {
-        DEBUG_LOG("bind failed; %s\n", strerror(errno));
+        LOG(LOG_CRITICAL, "Failed to bind socket; %s\n", strerror(errno));
         goto fail;
     }
 
@@ -622,10 +624,10 @@ registrar_loop(void *args)
                 /* Ignore timeout failures. They're necessary to ensure we can
                    continue to broadcast our existence periodically. */
                 if (errno != EAGAIN) {
-                    DEBUG_LOG("recvfrom failed; %s\n", strerror(errno));
+                    LOG(LOG_WARNING, "Failed to receive datagram; %s\n", strerror(errno));
                 }
             } else {
-                DEBUG_LOG("received incomplete header (%ld/%lu bytes).\n", bytes, sizeof(message_t));
+                LOG(LOG_WARNING, "Received incomplete header (%ld/%lu bytes).\n", bytes, sizeof(message_t));
             }
             continue;
         }
@@ -644,12 +646,12 @@ registrar_loop(void *args)
         if (peer == NULL) {
             peer_t *peer = malloc(sizeof(peer_t));
             if (peer == NULL) {
-                DEBUG_LOG("unable to allocate peer record.\n");
+                LOG(LOG_CRITICAL, "Failed to allocate peer record.\n");
                 goto fail;
             }
             peer->ip = peer_ip;
             HASH_ADD_INT(c->peers, ip, peer);
-            DEBUG_LOG("added %s to set of peers\n", inet_ntoa(client_addr.sin_addr));
+            LOG(LOG_INFO, "Added %s to set of peers\n", inet_ntoa(client_addr.sin_addr));
         }
 
         /* If reply is required, send a no-reply-required response by re-using
@@ -664,9 +666,9 @@ registrar_loop(void *args)
                                 (struct sockaddr *) &client_addr,
                                 sizeof(client_addr)) != sizeof(message_t))) {
                 if (bytes < 0) {
-                    DEBUG_LOG("failed to send registration reply; %s\n", strerror(errno));
+                    LOG(LOG_WARNING, "Failed to send registration reply; %s\n", strerror(errno));
                 } else {
-                    DEBUG_LOG("failed to send entire registration reply (%ld/%lu bytes).\n", bytes, sizeof(message_t));
+                    LOG(LOG_WARNING, "Failed to send entire registration reply (%ld/%lu bytes).\n", bytes, sizeof(message_t));
                 }
             }
         }
@@ -707,14 +709,14 @@ cache_local_store(lcache_t *lc, char *path, uint8_t *data, size_t size)
 {
     /* Verify we can fit this in the cache. */
     if (lc->used + size > lc->capacity) {
-        DEBUG_LOG("item of %lu bytes too big to fit in local cache.\n", size);
+        LOG(LOG_DEBUG, "Item of %lu bytes too big to fit in local cache.\n", size);
         return -E2BIG;
     }
 
     /* Get a new location record. */
     lloc_t *loc = malloc(sizeof(lloc_t));
     if (loc == NULL) {
-        DEBUG_LOG("malloc failed\n");
+        LOG(LOG_ERROR, "Failed to allocate lloc_t struct.\n");
         return -ENOMEM;
     }
 
@@ -747,7 +749,7 @@ cache_local_load(lcache_t *lc, request_t *request)
     lloc_t *loc = NULL;
     HASH_FIND_STR(lc->ht, request->path, loc);
     if (loc == NULL) {
-        DEBUG_LOG("attempted to load uncached file; %s\n", request->path);
+        LOG(LOG_ERROR, "Attempted to load uncached file: \"%s\"\n", request->path);
         return -ENODATA;
     }
 
@@ -800,7 +802,7 @@ cache_remote_load(void *args)
     HASH_FIND_STR(rc->ht, request->path, loc);
     if (loc == NULL) {
         /* ISSUE: leaking this request. */
-        DEBUG_LOG("tried to load file that's not in the remote cache; %s\n", request->path);
+        LOG(LOG_ERROR, "Tried to load file that's not in the remote cache; %s\n", request->path);
         request->status = -ENOENT;
         goto done;
     }
@@ -808,20 +810,20 @@ cache_remote_load(void *args)
     /* Connect to them. */
     int peer_fd = network_connect(loc->ip);
     if (peer_fd < 0) {
-        DEBUG_LOG("network_connect failed; %s\n", strerror(-peer_fd));
+        LOG(LOG_ERROR, "network_connect failed; %s\n", strerror(-peer_fd));
         request->status = peer_fd;
         goto done;
     }
 
     /* Send them a request for the file. */
-    DEBUG_LOG("Requesting file \"%s\" from %s.\n", request->path, inet_ntoa((struct in_addr) {.s_addr = loc->ip}));
+    LOG(LOG_INFO, "Requesting file \"%s\" from %s.\n", request->path, inet_ntoa((struct in_addr) {.s_addr = loc->ip}));
     int status = network_send_message(TYPE_RQST,
                                       FLAG_NONE,
                                       request->path,
                                       strlen(request->path) + 1,
                                       peer_fd);
     if (status < 0) {
-        DEBUG_LOG("Failed to send message; %s\n", strerror(-status));
+        LOG(LOG_ERROR, "Failed to send message; %s\n", strerror(-status));
         request->status = status;
         close(peer_fd);
         goto done;
@@ -832,16 +834,14 @@ cache_remote_load(void *args)
     status = network_get_message(peer_fd, &response);
     close(peer_fd); /* Socket use finished here. */
     if (status < 0) {
-        /* ISSUE: leaking this request. */
-        DEBUG_LOG("network_get_message failed; %s\n", strerror(-status));
+        LOG(LOG_ERROR, "network_get_message failed; %s\n", strerror(-status));
         request->status = status;
         goto done;
     }
 
     /* Make sure we got a sensible response. */
     if (response->header.type != TYPE_RSPN) {
-        /* ISSUE: leaking this request. */
-        DEBUG_LOG("Received an incorrect message type (type = 0x%hx)\n", response->header.type);
+        LOG(LOG_WARNING, "Received an incorrect message type (type = 0x%hx)\n", response->header.type);
         request->status = status;
         free(response);
         goto done;
@@ -849,8 +849,7 @@ cache_remote_load(void *args)
 
     /* Was the peer unable to fulfill the request? */
     if (response->header.unbl) {
-        /* ISSUE: leaking this request. */
-        DEBUG_LOG("%s unable to fulfill request for %s.\n", inet_ntoa((struct in_addr) {.s_addr = loc->ip}), request->path);
+        LOG(LOG_WARNING, "%s unable to fulfill request for \"%s\".\n", inet_ntoa((struct in_addr) {.s_addr = loc->ip}), request->path);
         request->status = status;
         free(response);
         goto done;
@@ -866,7 +865,7 @@ cache_remote_load(void *args)
     memcpy(request->_ldata, response->data, request->size);
     QUEUE_PUSH_SAFE(user->done, &user->done_lock, next, prev, request);
     
-    DEBUG_LOG("Received \"%s\" (%u bytes) from %s.\n", request->path, response->header.length, inet_ntoa((struct in_addr) {.s_addr = loc->ip}));
+    LOG(LOG_DEBUG, "Received \"%s\" (%u bytes) from %s.\n", request->path, response->header.length, inet_ntoa((struct in_addr) {.s_addr = loc->ip}));
 
    done:
     QUEUE_PUSH_SAFE(user->done, &user->done_lock, next, prev, request);
@@ -883,12 +882,12 @@ cache_remote_load(void *args)
 int
 manager_submit_io(ustate_t *ustate, request_t *r)
 {
-    DEBUG_LOG("Loading %s from storage.\n", r->path);
+    LOG(LOG_DEBUG, "Loading \"%s\" from storage.\n", r->path);
 
     /* Open the file. */
     r->_lfd_file = open(r->path, O_RDONLY | __O_DIRECT);
     if (r->_lfd_file < 0) {
-        DEBUG_LOG("open failed; \"%s\"; %s\n", r->path, strerror(errno));
+        LOG(LOG_ERROR, "open failed; \"%s\"; %s\n", r->path, strerror(errno));
         return -errno;
     }
 
@@ -896,7 +895,7 @@ manager_submit_io(ustate_t *ustate, request_t *r)
        4KB for O_DIRECT compatibility. */
     off_t size = file_get_size(r->_lfd_file);
     if (size < 0) {
-        DEBUG_LOG("file_get_size failed\n");
+        LOG(LOG_ERROR, "file_get_size failed.\n");
         return (int) size;
     }
     r->size = (((size_t) size) | 0xFFF) + 1;
@@ -904,7 +903,7 @@ manager_submit_io(ustate_t *ustate, request_t *r)
     /* Create buffer using shm. */
     r->_lfd_shm = shm_alloc(r->shm_path, &r->_ldata, r->size);
     if (r->_lfd_shm < 0) {
-        DEBUG_LOG("shm_alloc failed; %s\n", strerror(-r->_lfd_shm));
+        LOG(LOG_ERROR, "shm_alloc failed; %s\n", strerror(-r->_lfd_shm));
         close(r->_lfd_file);
         return r->_lfd_shm;
     }
@@ -933,7 +932,7 @@ manager_check_cleanup(cache_t *c, ustate_t *ustate)
 
     /* Check if it should be cleaned up (not exempt, not in an error state). */
     if (!to_clean->_skip_clean && !to_clean->status) {
-        DEBUG_LOG("Deep cleaning \"%s\" entry (%s).\n", to_clean->path, to_clean->shm_path);
+        LOG(LOG_DEBUG, "Deep cleaning \"%s\" entry (%s).\n", to_clean->path, to_clean->shm_path);
         munmap(to_clean->_ldata, to_clean->size);
         close(to_clean->_lfd_shm);
         close(to_clean->_lfd_file);
@@ -963,7 +962,7 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
     if (cache_local_contains(&c->lcache, pending->path)) {
         pending->status = cache_local_load(&c->lcache, pending);
         if (pending->status < 0) {
-            DEBUG_LOG("cache_local_load failed; %s\n", strerror(-pending->status));
+            LOG(LOG_ERROR, "cache_local_load failed; %s\n", strerror(-pending->status));
         }
         QUEUE_PUSH_SAFE(ustate->done, &ustate->done_lock, next, prev, pending);
 
@@ -994,7 +993,7 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
     if (status < 0) {
         pending->status = status;
         QUEUE_PUSH_SAFE(ustate->done, &ustate->done_lock, next, prev, pending);
-        DEBUG_LOG("manager_submit_io failed; %s\n", strerror(-status));
+        LOG(LOG_ERROR, "manager_submit_io failed; %s\n", strerror(-status));
         return status;
     }
 
@@ -1018,7 +1017,7 @@ manager_check_done(cache_t *c, ustate_t *ustate)
         if (c->lcache.used + request->size <= c->lcache.capacity) {
             lloc_t *loc = malloc(sizeof(lloc_t));
             if (loc == NULL) {
-                DEBUG_LOG("Failed to allocate lloc_t struct\n");
+                LOG(LOG_ERROR, "Failed to allocate lloc_t struct.\n");
                 request->status = -ENOMEM;
                 goto skip_cache;
             }
@@ -1038,7 +1037,7 @@ manager_check_done(cache_t *c, ustate_t *ustate)
             c->lcache.used += loc->size;
             request->_skip_clean = true;
 
-            DEBUG_LOG("Added \"%s\" to local cache; marked to skip cleanup.\n", loc->path);
+            LOG(LOG_DEBUG, "Added \"%s\" to local cache; marked to skip cleanup.\n", loc->path);
 
             /* Add to list of filenames to be synchronized. */
             QUEUE_PUSH(c->lcache.unsynced, next, prev, loc);
@@ -1069,7 +1068,7 @@ manager_loop(void *args)
            zero indicates no limit. */
         if ((c->lcache.n_unsynced >= c->lcache.threshold && c->lcache.threshold > 0) ||
             (idle_iters > (MAX_IDLE_ITERS) && c->lcache.n_unsynced > 0)) {
-            DEBUG_LOG("Syncing %lu filepaths.\n", c->lcache.n_unsynced);
+            LOG(LOG_DEBUG, "Syncing %lu filepaths.\n", c->lcache.n_unsynced);
             idle_iters = 0;
             cache_sync(c);
         }
@@ -1138,7 +1137,7 @@ cache_get_submit(ustate_t *user, char *path)
     request_t *request = NULL;
     QUEUE_POP_SAFE(user->free, &user->free_lock, next, prev, request);
     if (request == NULL) {
-        DEBUG_LOG("&user->free is empty\n");
+        LOG(LOG_WARNING, "Free queue is empty; no request_t structs available.\n");
         return -EAGAIN; /* Try again once completed requests have been freed. */
     }
     memset(request, 0, sizeof(request_t));
@@ -1170,13 +1169,13 @@ cache_get_reap(ustate_t *user, request_t **out)
 
     /* Open the shm object. */
     if ((r->ufd_shm = shm_open(r->shm_path, O_RDONLY, S_IRUSR)) < 0) {
-        DEBUG_LOG("shm_open failed; \"%s\"; %s\n", r->shm_path, strerror(errno));
+        LOG(LOG_ERROR, "shm_open failed; \"%s\"; %s\n", r->shm_path, strerror(errno));
         return -errno;
     }
 
     /* Create the mmap. */
     if (mmap(r->udata, r->size, PROT_READ, FLAG_NONE, r->ufd_shm, 0) < 0) {
-        DEBUG_LOG("mmap failed; %s\n", strerror(errno));
+        LOG(LOG_ERROR, "mmap failed; %s\n", strerror(errno));
         return -errno;
     }
 
@@ -1257,7 +1256,7 @@ cache_init(cache_t *c,
 {
     /* Allocate user states. */
     if ((c->ustates = mmap_alloc(n_users * sizeof(ustate_t))) == NULL) {
-        DEBUG_LOG("mmap_alloc failed\n");
+        LOG(LOG_CRITICAL, "mmap_alloc failed.\n");
         return -ENOMEM;
     }
 
@@ -1270,7 +1269,7 @@ cache_init(cache_t *c,
         /* Allocate requests (queue entries). */
         if ((ustate->free = mmap_alloc(queue_depth * sizeof(request_t))) == NULL) {
             cache_destroy(c);
-            DEBUG_LOG("mmap_alloc failed\n");
+            LOG(LOG_CRITICAL, "mmap_alloc failed.\n");
             return -ENOMEM;
         }
         ustate->head = ustate->free;
@@ -1293,7 +1292,7 @@ cache_init(cache_t *c,
         /* Initialize the io_uring queues. */
         int status = io_uring_queue_init(queue_depth, &ustate->ring, 0);
         if (status < 0) {
-            DEBUG_LOG("io_uring_queue_init failed\n");
+            LOG(LOG_CRITICAL, "io_uring_queue_init failed.\n");
             cache_destroy(c);
             return status;
         }
@@ -1327,14 +1326,14 @@ cache_init(cache_t *c,
        avoid self-adding. See comments in cache.h for more details. */
     int rfd = open("/dev/urandom", O_RDONLY);
     if (rfd < 0) {
-        DEBUG_LOG("failed to open /dev/urandom; %s\n", strerror(errno));
+        LOG(LOG_CRITICAL, "Failed to open /dev/urandom; %s\n", strerror(errno));
         cache_destroy(c);
         return -errno;
     }
     ssize_t bytes = read(rfd, &c->random, sizeof(c->random));
     close(rfd);
     if (bytes != sizeof(c->random)) {
-        DEBUG_LOG("failed to read randomness from /dev/urandom.\n");
+        LOG(LOG_CRITICAL, "Failed to read randomness from /dev/urandom.\n");
         cache_destroy(c);
         return -EBADFD;
     }
