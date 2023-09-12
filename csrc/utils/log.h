@@ -69,7 +69,7 @@ static const char *level_prefixes[] = {
         time_t __log_time;                                                     \
         time(&__log_time);                                                     \
         struct tm *__log_tm = localtime(&__log_time);                          \
-        if (DEBUG && level < LOG_MIN_LEVEL) {                                 \
+        if (DEBUG && level <= LOG_MIN_LEVEL) {                                 \
             fprintf(stderr,                                                    \
                     "[PID %d][%d:%d:%d][%s][%s][%s:%d] " fmt,                  \
                     getpid(),                                                  \

@@ -21,7 +21,7 @@
 # SOFTWARE.
 
 CC     = gcc
-CFLAGS = -Wall -Wno-unused-variable -lpthread -luring -lrt -g
+CFLAGS = -Wall -Wno-unused-variable -lpthread -luring -lrt -g -fstack-protector-all -Wstack-protector --param ssp-buffer-size=4
 DEPS   = ../../csrc/ladcache/cache.h ../../csrc/utils/alloc.h ../../csrc/utils/fifo.h ../../csrc/log.h ../../csrc/uthash.h
 OBJ    = test_ladcache.o ../../csrc/ladcache/cache.o ../../csrc/utils/alloc.o
 
