@@ -20,3 +20,16 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+CC     = gcc
+CFLAGS = -Wall -Wno-unused-variable -lpthread -luring -lrt -g
+DEPS   = ../../csrc/ladcache/cache.h ../../csrc/utils/alloc.h ../../csrc/utils/fifo.h ../../csrc/log.h ../../csrc/uthash.h
+OBJ    = test_ladcache.o ../../csrc/ladcache/cache.o ../../csrc/utils/alloc.o
+
+%.o: %.c $(DEPS)
+	$(CC) -c -o $@ $< $(CFLAGS)
+
+ladcache: $(OBJ)
+	$(CC) -o $@ $^ $(CFLAGS)
+
+clean:
+	rm -f ladcache $(OBJ)

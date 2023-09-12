@@ -23,11 +23,16 @@
 
 #include "alloc.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <errno.h>
+#include <sys/shm.h>
 #include <sys/mman.h>
-
-#define _GNU_SOURCE
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <fcntl.h>
 
 
 /* Allocate shared memory using an anonymous mmap. If this process forks, and
@@ -52,4 +57,51 @@ void
 mmap_free(void *ptr, size_t size)
 {
    munmap(ptr, size);
+}
+
+/* Allocate shared mlocked memory using shm/mmap. Points PTR to a SIZE-byte
+   mmapped shm object. Returns object's file descriptor on success, -errno on
+   failure.
+   
+   Note: freeing this memory properly is non-trivial. */
+int
+shm_alloc(char *name, void **ptr, size_t size)
+{
+   /* Create the shm object. */
+   int fd = shm_open(name, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+   if (fd < 0) {
+      return fd;
+   }
+
+   /* Allocate SIZE bytes. */
+   if (ftruncate(fd, size) < 0) {
+      shm_unlink(name);
+      close(fd);
+      return -errno;
+   }
+
+   /* Create the mmap. */
+   *ptr = mmap(NULL, size, PROT_WRITE, MAP_SHARED, fd, 0);
+   if (*ptr == NULL) {
+      shm_unlink(name);
+      close(fd);
+      return -ENOMEM;
+   }
+
+   /* Page-lock the memory. */
+   if (mlock(*ptr, size) < 0) {
+      shm_unlink(name);
+      close(fd);
+      return -errno;
+   }
+
+   return fd;
+}
+
+/* Free memory allocated with shm_alloc. Returns 0 on success, -errno on
+   failure. */
+int
+shm_free(void)
+{
+   return -ENOSYS;
 }

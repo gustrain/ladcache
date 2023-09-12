@@ -28,5 +28,7 @@
 
 void *mmap_alloc(size_t size);
 void mmap_free(void *ptr, size_t size);
+int shm_alloc(char *name, void **ptr, size_t size);
+int shm_free(void);
 
 #endif

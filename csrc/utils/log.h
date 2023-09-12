@@ -24,14 +24,64 @@
 #ifndef __UTILS_LOG_H_
 #define __UTILS_LOG_H_
 
-#define DEBUG 0
-#define DEBUG_LOG(fmt, ...) \
-    do { if (DEBUG) fprintf(stderr, "(pid %d) [%8s:%-5d] " fmt, getpid(), __FILE__, \
-                            __LINE__, ## __VA_ARGS__); } while (0)
+#include <unistd.h>
+#include <time.h>
 
-#define ALT_DEBUG 0
-#define ALT_DEBUG_LOG(fmt, ...) \
-    do { if (ALT_DEBUG) fprintf(stderr, "[%8s:%-5d] " fmt, __FILE__, \
-                                __LINE__, ## __VA_ARGS__); } while (0)
+/* Log scopes. */
+enum log_scope {
+    SCOPE_INT,
+    SCOPE_EXT
+};
+
+/* Logging scope prefixes, indexed by log scopes enum. */
+static const char *scope_prefixes[] = {
+    "INT",
+    "EXT"
+};
+
+/* Log levels. */
+enum log_level {
+    LOG_CRITICAL,
+    LOG_ERROR,
+    LOG_WARNING,
+    LOG_INFO,
+    LOG_DEBUG
+};
+
+/* Logging level prefixes, indexed by log levels enum. */
+static const char *level_prefixes[] = {
+    "CRIT",
+    "ERR.",
+    "WARN",
+    "INFO",
+    "DBG."
+};
+
+/* Change this to modify logging settings. */
+#define LOG_MIN_LEVEL LOG_DEBUG
+
+/* Master on/off setting. */
+#define DEBUG 1
+
+#define CONCAT(a, b) a ## b
+#define DEBUG_LOG(scope, level, fmt, ...)                                      \
+    do {                                                                       \
+        time_t __log_time;                                                     \
+        time(&__log_time);                                                     \
+        struct tm *__log_tm = localtime(&__log_time);                          \
+        if (DEBUG && level < LOG_MIN_LEVEL) {                                 \
+            fprintf(stderr,                                                    \
+                    "[PID %d][%d:%d:%d][%s][%s][%s:%d] " fmt,                  \
+                    getpid(),                                                  \
+                    __log_tm->tm_hour,                                         \
+                    __log_tm->tm_min,                                          \
+                    __log_tm->tm_sec,                                          \
+                    scope_prefixes[scope],                                     \
+                    level_prefixes[level],                                     \
+                    __FILE__,                                                  \
+                    __LINE__,                                                  \
+                    ## __VA_ARGS__);                                           \
+        }                                                                      \
+    } while (0)
 
 #endif
