@@ -35,7 +35,7 @@ enum log_scope {
 
 /* Logging scope prefixes, indexed by log scopes enum. */
 static const char *scope_prefixes[] = {
-    "INT"
+    "INT",
     "EXT"
 };
 
