@@ -342,7 +342,6 @@ cache_sync(cache_t *c)
 
     /* Allocate our message payload. */
     char *payload = malloc(payload_len);
-
     if (payload == NULL) {
         LOG(LOG_ERROR, "Unable to allocate %lu bytes for sync payload.\n", payload_len);
         return -ENOMEM;
