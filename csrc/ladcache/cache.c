@@ -328,7 +328,7 @@ cache_sync(cache_t *c)
     char *__payload = malloc(payload_len + 2);
     char *before = __payload;
     char *payload = __payload + 1;
-    char *after = payload + payload_len + 1;
+    char *after = payload + payload_len;
 
     *before = 0x88;
     *after = 0x99;
