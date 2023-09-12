@@ -323,6 +323,7 @@ cache_sync(cache_t *c)
     } while ((loc = loc->next) != NULL);
 
     /* Allocate our message payload. */
+    LOG(LOG_DEBUG, "malloc(%lu)\n", payload_len);
     char *payload = malloc(payload_len);
     if (payload == NULL) {
         LOG(LOG_ERROR, "Unable to allocate %lu bytes for sync payload.\n", payload_len);
@@ -431,6 +432,7 @@ monitor_handle_sync(message_t *message, cache_t *c, int fd)
         
            NOTE: it would be more efficient to malloc a single chunk of memory
            for all entries, however this would be more difficult to track. */
+        LOG(LOG_DEBUG, "malloc(%lu)\n", sizeof(rloc_t) + fp_len + 1);
         rloc_t *loc = malloc(sizeof(rloc_t) + fp_len + 1);
         if (loc == NULL) {
             LOG(LOG_ERROR, "Failed to allocate lloc_t struct.\n");
