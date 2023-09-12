@@ -324,14 +324,15 @@ cache_sync(cache_t *c)
     } while ((loc = loc->next) != NULL);
 
     /* Allocate our message payload. */
-    LOG(LOG_DEBUG, "malloc(%lu)\n", payload_len + 32);
-    char *__payload = malloc(payload_len + 2);
+    #define FOO 32
+    LOG(LOG_DEBUG, "malloc(%lu)\n", payload_len + FOO);
+    char *__payload = malloc(payload_len + FOO);
     char *before = __payload;
     char *payload = __payload + 1;
     char *after = payload + payload_len;
 
     *before = 0x88;
-    memset(after, 0x99, 8);
+    memset(after, 0x99, FOO);
 
 
     if (__payload == NULL) {
