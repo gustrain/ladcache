@@ -338,7 +338,7 @@ cache_sync(cache_t *c)
         QUEUE_POP(c->lcache.unsynced, next, prev, loc);
         assert(fp_dest + strlen(loc->path) + 1 <= payload + payload_len);
         strncpy(fp_dest, loc->path, MAX_PATH_LEN + 1);
-        fp_dest += strlen(loc->path + 1); /* +1 for '\0' byte. */
+        fp_dest += strlen(loc->path) + 1; /* +1 for '\0' byte. */
     } while (c->lcache.unsynced != NULL);
 
     /* Send the message to everyone we know. */
