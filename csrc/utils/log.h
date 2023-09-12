@@ -34,7 +34,7 @@ enum log_scope {
 };
 
 /* Logging scope prefixes, indexed by log scopes enum. */
-char *scope_prefixes[] = {
+static const char *scope_prefixes[] = {
     "INT"
     "EXT"
 };
@@ -49,7 +49,7 @@ enum log_level {
 };
 
 /* Logging level prefixes, indexed by log levels enum. */
-char *level_prefixes[] = {
+static const char *level_prefixes[] = {
     "CRIT",
     "ERR.",
     "WARN",
