@@ -63,9 +63,10 @@ typedef struct file_request {
 
     /* File metadata. */
     size_t  size;                           /* Size of file data in bytes. */
-    char    path[MAX_PATH_LEN + 1];         /* Path to file. */
+    char    path[MAX_PATH_LEN + 1];         /* Path to file, +1 for \0.  */
     char    shm_path[MAX_SHM_PATH_LEN + 1]; /* PATH, but for shm object, and
-                                               conforming to shm name rules. */
+                                               conforming to shm name rules,
+                                               +1 for \0. */
 
     /* Loader state. */
     void *_ldata;       /* Loader's pointer to the shm object's memory. */
@@ -87,11 +88,11 @@ typedef struct file_request {
 
 /* File data location for the local cache. Manager/monitor context. */
 typedef struct local_location {
-    char    path[MAX_PATH_LEN + 1];         /* Index in hash table. */
-    char    shm_path[MAX_PATH_LEN + 2];     /* Path to the shm object. */
-    int     shm_fd;                         /* FD for shm object. */
-    void   *data;                           /* Pointer to shm obj's memory. */
-    size_t  size;                           /* Size of file in bytes. */
+    char    path[MAX_PATH_LEN + 1];             /* Index in hash table, +1 for \0. */
+    char    shm_path[MAX_SHM_PATH_LEN + 1];     /* Path to the shm object, +1 for \0. */
+    int     shm_fd;                             /* FD for shm object. */
+    void   *data;                               /* Pointer to shm obj's memory. */
+    size_t  size;                               /* Size of file in bytes. */
 
     /* Update (new) list. */
     struct local_location *next;    /* Next entry in the new list. */

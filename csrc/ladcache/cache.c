@@ -206,11 +206,11 @@ network_get_message(int fd, message_t **out)
    as the payload. Does NOT close FD once finished. Returns 0 on sucess and
    -errno on failure. */
 int
-network_send_message(mtype_t type, int flags, void *data, uint32_t size, int fd)
+network_send_message(mtype_t type, int flags, const void *data, uint32_t size, int fd)
 {
     /* Configure and send the header. */
     message_t header;
-    memset(&header, 0, sizeof(message_t));
+    memset(&header, 0, sizeof(header));
 
     /* Configure the header. */
     header.header.type = type;
@@ -219,12 +219,12 @@ network_send_message(mtype_t type, int flags, void *data, uint32_t size, int fd)
 
     /* Send the header. */
     ssize_t bytes;
-    if ((bytes = send(fd, (void *) &header, sizeof(message_t), 0)) != sizeof(message_t)) {
+    if ((bytes = send(fd, (void *) &header, sizeof(header), 0)) != sizeof(header)) {
         if (bytes < 0) {
             LOG(LOG_ERROR, "Failed to send header; %s\n", strerror(errno));
             return -errno;
         } else {
-            LOG(LOG_ERROR, "Failed to send entire header (%ld/%lu bytes sent).\n", bytes, sizeof(message_t));
+            LOG(LOG_ERROR, "Failed to send entire header (%ld/%lu bytes sent).\n", bytes, sizeof(header));
             return -EAGAIN;
         }
     }
@@ -325,7 +325,14 @@ cache_sync(cache_t *c)
 
     /* Allocate our message payload. */
     LOG(LOG_DEBUG, "malloc(%lu)\n", payload_len);
-    char *payload = malloc(payload_len);
+    char *__payload = malloc(payload_len + 2);
+    char *before = __payload;
+    char *after = __payload + payload_len + 1;
+    char *payload = __payload + 1;
+
+    *before = 0x88;
+    *after = 0x99;
+
     if (payload == NULL) {
         LOG(LOG_ERROR, "Unable to allocate %lu bytes for sync payload.\n", payload_len);
         return -ENOMEM;
@@ -349,7 +356,8 @@ cache_sync(cache_t *c)
         int peer_fd = network_connect(peer->ip);
         if (peer_fd < 0) {
             LOG(LOG_ERROR, "network_connect failed; %s\n", strerror(-peer_fd));
-            free(payload);
+            pthread_spin_unlock(&c->peer_lock);
+            free(__payload);
             return peer_fd;
         }
 
@@ -362,15 +370,19 @@ cache_sync(cache_t *c)
                                           peer_fd);
         if (status < 0) {
             LOG(LOG_ERROR, "Failed to send sync message; %s\n", strerror(-status));
-            free(payload);
+            pthread_spin_unlock(&c->peer_lock);
+            free(__payload);
             return status;
         }
         close(peer_fd);
     };
     pthread_spin_unlock(&c->peer_lock);
 
+    assert(*before == 0x88);
+    assert(*after = 0x99);
+
     c->lcache.n_unsynced = 0;
-    free(payload);
+    free(__payload);
     return 0;
 }
 
