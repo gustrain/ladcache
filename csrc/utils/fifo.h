@@ -22,6 +22,37 @@
    */
 
 #include <pthread.h>
+#include "log.h"
+
+/* Get the length of a queue by iterating over the elements.
+      - head: head of queue struct.
+      - next: name of "next" field.
+      - prev: name of "prev" field.
+      - out: integer to be filled with length of queue.
+ */
+#define QUEUE_LEN(head, next, prev, out)                                      \
+      do {                                                                    \
+            out = 0;                                                          \
+            typeof(head) temp = head;                                         \
+            while (temp != NULL) {                                            \
+                  temp = temp->next;                                          \
+                  out++;                                                      \
+            }                                                                 \
+      } while (0)
+
+/* Get the length of a lock-protected queue by iterating over the elements.
+      - head: head of queue struct.
+      - lock: pointer to spin lock.
+      - next: name of "next" field.
+      - prev: name of "prev" field.
+      - out: integer to be filled with length of queue.
+ */
+#define QUEUE_LEN_SAFE(head, lock, next, prev, out)                           \
+      do {                                                                    \
+            pthread_spin_lock(lock);                                          \
+            QUEUE_LEN(head, temp, next, prev, out);                           \
+            pthread_spin_unlock(lock);                                        \
+      } while (0)
 
 /* General-purpose pop method.
       - head: head of queue struct.
@@ -31,6 +62,8 @@
  */
 #define QUEUE_POP(head, next, prev, out)                                      \
       do {                                                                    \
+            int __old;                                                        \
+            QUEUE_LEN(head, next, prev, __old);                               \
             if ((head) == NULL) {                                             \
                   continue;                                                   \
             }                                                                 \
@@ -39,6 +72,9 @@
             if ((head) != NULL) {                                             \
                   (head)->prev = NULL;                                        \
             }                                                                 \
+            int __new;                                                        \
+            QUEUE_LEN(head, next, prev, __new);                               \
+            LOG(LOG_DEBUG, "Popping from %s, length %d -> %d.\n", #head, __old, __new);\
       } while (0)
 
 /* General-purpose pop method that acquires a spinlock while working.
@@ -63,6 +99,8 @@
  */
 #define QUEUE_PUSH(head, next, prev, elem)                                    \
       do {                                                                    \
+            int __old;                                                        \
+            QUEUE_LEN(head, next, prev, __old);                               \
             if ((head) == NULL) {                                             \
                   (head) = (elem);                                            \
                   (elem)->prev = NULL;                                        \
@@ -73,6 +111,9 @@
             (elem)->next = (head)->next;                                      \
             (elem)->prev = NULL;                                              \
             (head) = (elem);                                                  \
+            int __new;                                                        \
+            QUEUE_LEN(head, next, prev, __new);                               \
+            LOG(LOG_DEBUG, "Pushing to %s, length %d -> %d.\n", #head, __old, __new);\
       } while (0)
 
 /* General-purpose push method that acquires a spinlock while working.
