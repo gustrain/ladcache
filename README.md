@@ -3,7 +3,7 @@
 
 ## *Warning: this project is still a work-in-progress, and is not yet completely stable!*
 
-![3-way demo](./assets/3-way-example.PNG)
+![3-way demo](./assets/3-way-example.png)
 *Demo of distributed cache with three nodes, using the interactive test mode.*
 
 ## Project Structure
