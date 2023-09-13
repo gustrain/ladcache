@@ -1313,8 +1313,8 @@ cache_init(cache_t *c,
         LOG(LOG_DEBUG, "initializing free queue with %d entries.\n", queue_depth);
         for (int j = 0; j < queue_depth; j++) {
             request_t *queue = ustate->free;
-            queue[i].next = i + 1 < queue_depth ? &queue[i + 1] : NULL;
-            queue[i].prev = i - 1 < queue_depth ? &queue[i - 1] : NULL;
+            queue[j].next = j + 1 < queue_depth ? &queue[j + 1] : NULL;
+            queue[j].prev = j - 1 < queue_depth ? &queue[j - 1] : NULL;
         }
         int len;
         QUEUE_LEN(ustate->free, next, prev, len);
