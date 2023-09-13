@@ -413,7 +413,7 @@ monitor_handle_request(message_t *message, cache_t *c, int fd)
     lloc_t *loc;
     HASH_FIND_STR(c->lcache.ht, (char *) message->data, loc);
     if (loc == NULL) {
-        LOG(LOG_WARNING, "File %s is not cached.\n", message->data);
+        LOG(LOG_WARNING, "File \"%s\" is not cached.\n", message->data);
         return network_send_message(TYPE_RSPN, FLAG_UNBL, NULL, 0, fd);
     }
 
@@ -1005,6 +1005,8 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
         args->rc = &c->rcache;
         args->request = pending;
         args->user = ustate;
+
+        LOG(LOG_DEBUG, "Spawning cache_remote_load thread for \"%s\".\n", pending->path);
 
         /* Spawn a thread to handling requesting the file from the peer. It will
            take care of itself and doesn't require management. */
