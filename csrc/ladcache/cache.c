@@ -742,9 +742,9 @@ cache_local_store(lcache_t *lc, char *path, uint8_t *data, size_t size)
     }
 
     /* Allocate shared memory. */
-    loc->size = size;
+    loc->shm_size = size;
     shmify(path, loc->shm_path, MAX_PATH_LEN + 1, MAX_SHM_PATH_LEN + 1);
-    loc->shm_fd = shm_alloc(loc->shm_path, &loc->data, loc->size);
+    loc->shm_fd = shm_alloc(loc->shm_path, &loc->data, loc->shm_size);
     if (loc->shm_fd < 0) {
         int status = loc->shm_fd;
         free(loc);
@@ -881,9 +881,10 @@ cache_remote_load(void *args)
        complicate the get_message interface and so we'll just eat the copy cost
        for now. */
     request->size = response->header.length;
+    request->shm_size = request->size;
     shmify(request->path, request->shm_path, MAX_PATH_LEN + 1, MAX_SHM_PATH_LEN + 1);
-    request->_lfd_shm = shm_alloc(request->shm_path, &request->_ldata, request->size);
-    memcpy(request->_ldata, response->data, request->size);
+    request->_lfd_shm = shm_alloc(request->shm_path, &request->_ldata, request->shm_size);
+    memcpy(request->_ldata, response->data, request->shm_size);
     
     LOG(LOG_DEBUG, "Received \"%s\" (%u bytes) from %s.\n", request->path, response->header.length, inet_ntoa((struct in_addr) {.s_addr = loc->ip}));
 
@@ -918,10 +919,11 @@ manager_submit_io(ustate_t *ustate, request_t *r)
         LOG(LOG_ERROR, "file_get_size failed.\n");
         return (int) size;
     }
-    r->size = (((size_t) size) | 0xFFF) + 1;
+    r->shm_size = (((size_t) size) | 0xFFF) + 1;
+    r->size = (size_t) size;
 
     /* Create buffer using shm. */
-    r->_lfd_shm = shm_alloc(r->shm_path, &r->_ldata, r->size);
+    r->_lfd_shm = shm_alloc(r->shm_path, &r->_ldata, r->shm_size);
     if (r->_lfd_shm < 0) {
         LOG(LOG_ERROR, "shm_alloc failed; %s\n", strerror(-r->_lfd_shm));
         close(r->_lfd_file);
@@ -930,7 +932,7 @@ manager_submit_io(ustate_t *ustate, request_t *r)
 
     /* Tell io_uring to read the file into the buffer. */
     struct io_uring_sqe *sqe = io_uring_get_sqe(&ustate->ring);
-    io_uring_prep_read(sqe, r->_lfd_file, r->_ldata, r->size, 0);
+    io_uring_prep_read(sqe, r->_lfd_file, r->_ldata, r->shm_size, 0);
     io_uring_sqe_set_data(sqe, r);
     io_uring_submit(&ustate->ring);
 
@@ -953,7 +955,7 @@ manager_check_cleanup(cache_t *c, ustate_t *ustate)
     /* Check if it should be cleaned up (not exempt, not in an error state). */
     if (!to_clean->_skip_clean && !to_clean->status) {
         LOG(LOG_DEBUG, "Deep cleaning \"%s\" entry (%s).\n", to_clean->path, to_clean->shm_path);
-        munmap(to_clean->_ldata, to_clean->size);
+        munmap(to_clean->_ldata, to_clean->shm_size);
         close(to_clean->_lfd_shm);
         shm_unlink(to_clean->shm_path);
 
@@ -1041,7 +1043,7 @@ manager_check_done(cache_t *c, ustate_t *ustate)
         io_uring_cqe_seen(&ustate->ring, cqe);
 
         /* Try to cache this file. */
-        if (c->lcache.used + request->size <= c->lcache.capacity) {
+        if (c->lcache.used + request->shm_size <= c->lcache.capacity) {
             lloc_t *loc = malloc(sizeof(lloc_t));
             if (loc == NULL) {
                 LOG(LOG_ERROR, "Failed to allocate lloc_t struct.\n");
@@ -1053,15 +1055,16 @@ manager_check_done(cache_t *c, ustate_t *ustate)
                filepaths for this epoch. */
             *loc = (lloc_t) {
                 .data = request->_ldata,
-                .shm_fd = request->_lfd_shm,
                 .size = request->size,
+                .shm_fd = request->_lfd_shm,
+                .shm_size = request->shm_size
             };
             strncpy_s(loc->path, request->path, MAX_PATH_LEN + 1);
             strncpy_s(loc->shm_path, request->shm_path, MAX_SHM_PATH_LEN + 1);
 
             /* Add to the hash table indexed by PATH. */
             HASH_ADD_STR(c->lcache.ht, path, loc);
-            c->lcache.used += loc->size;
+            c->lcache.used += loc->shm_size;
             request->_skip_clean = true;
 
             LOG(LOG_DEBUG, "Added \"%s\" to local cache; marked to skip cleanup.\n", loc->path);
@@ -1207,7 +1210,7 @@ cache_get_reap(ustate_t *user, request_t **out)
     }
 
     /* Create the mmap. */
-    if (mmap(r->udata, r->size, PROT_READ, FLAG_NONE, r->ufd_shm, 0) < 0) {
+    if (mmap(r->udata, r->shm_size, PROT_READ, FLAG_NONE, r->ufd_shm, 0) < 0) {
         LOG(LOG_ERROR, "mmap failed; %s\n", strerror(errno));
         status = -errno;
         goto done;
@@ -1235,7 +1238,7 @@ cache_release(ustate_t *user, request_t *request)
 {
     if (request->status == 0) {
         /* ISSUE: Leaking resources on failure. Needs to be more granular. */
-        munmap(request->udata, request->size);
+        munmap(request->udata, request->shm_size);
         close(request->ufd_shm);
     }
     QUEUE_PUSH_SAFE(user->cleanup, &user->cleanup_lock, next, prev, request);

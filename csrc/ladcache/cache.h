@@ -63,6 +63,7 @@ typedef struct file_request {
 
     /* File metadata. */
     size_t  size;                           /* Size of file data in bytes. */
+    size_t  shm_size;                       /* Size of shm object in bytes. */
     char    path[MAX_PATH_LEN + 1];         /* Path to file, +1 for \0.  */
     char    shm_path[MAX_SHM_PATH_LEN + 1]; /* PATH, but for shm object, and
                                                conforming to shm name rules,
@@ -91,8 +92,9 @@ typedef struct local_location {
     char    path[MAX_PATH_LEN + 1];             /* Index in hash table, +1 for \0. */
     char    shm_path[MAX_SHM_PATH_LEN + 1];     /* Path to the shm object, +1 for \0. */
     int     shm_fd;                             /* FD for shm object. */
-    void   *data;                               /* Pointer to shm obj's memory. */
+    size_t  shm_size;                           /* Size of shm object in bytes. */
     size_t  size;                               /* Size of file in bytes. */
+    void   *data;                               /* Pointer to shm obj's memory. */
 
     /* Update (new) list. */
     struct local_location *next;    /* Next entry in the new list. */
