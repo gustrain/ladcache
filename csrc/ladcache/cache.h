@@ -239,7 +239,7 @@ typedef struct {
 /* Creation/destruction methods. */
 cache_t *cache_new(void);
 void cache_destroy(cache_t *c);
-int cache_init(cache_t *c, size_t capacity, unsigned queue_depth, int max_unsynced, int n_users);
+int cache_init(cache_t *c, size_t capacity, int queue_depth, int max_unsynced, int n_users);
 
 /* Interface methods. */
 int cache_start(cache_t *c);

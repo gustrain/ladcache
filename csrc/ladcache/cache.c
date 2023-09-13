@@ -1285,7 +1285,7 @@ cache_destroy(cache_t *c)
 int
 cache_init(cache_t *c,
            size_t capacity,
-           unsigned queue_depth,
+           int queue_depth,
            int max_unsynced,
            int n_users)
 {
@@ -1310,10 +1310,14 @@ cache_init(cache_t *c,
         ustate->head = ustate->free;
 
         /* Initialize requests. */
+        LOG(LOG_DEBUG, "initializing free queue with %d entries.\n", queue_depth);
         for (int j = 0; j < queue_depth; j++) {
             ustate->free[i].next = &ustate->free[(i + 1) % queue_depth];
             ustate->free[i].prev = &ustate->free[(i - 1) % queue_depth];
         }
+        int len;
+        QUEUE_LEN(ustate->free, next, prev, len);
+        LOG(LOG_DEBUG, "verify: length of free queue is %d.\n", len);
 
         /* Ensure the list is NULL terminated. */
         ustate->free[0].prev = NULL;
