@@ -956,8 +956,13 @@ manager_check_cleanup(cache_t *c, ustate_t *ustate)
         LOG(LOG_DEBUG, "Deep cleaning \"%s\" entry (%s).\n", to_clean->path, to_clean->shm_path);
         munmap(to_clean->_ldata, to_clean->size);
         close(to_clean->_lfd_shm);
-        close(to_clean->_lfd_file);
         shm_unlink(to_clean->shm_path);
+
+        /* If we loaded from the remote cache we'll have never opened a local
+           file, and so _lfd_file will still be 0. */
+        if (to_clean->_lfd_file != 0) {
+            close(to_clean->_lfd_file);
+        }
     }
 
     /* Wipe it. */
