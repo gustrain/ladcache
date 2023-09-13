@@ -908,7 +908,7 @@ manager_submit_io(ustate_t *ustate, request_t *r)
     /* Open the file. */
     r->_lfd_file = open(r->path, O_RDONLY | __O_DIRECT);
     if (r->_lfd_file < 0) {
-        LOG(LOG_ERROR, "open failed; \"%s\"; %s\n", r->path, strerror(errno));
+        LOG(LOG_ERROR, "Failed to open \"%s\"; %s\n", r->path, strerror(errno));
         return -errno;
     }
 
@@ -1188,7 +1188,7 @@ cache_get_reap(ustate_t *user, request_t **out)
 
     /* Check if the request failed. */
     if (r->status < 0) {
-        LOG(LOG_WARNING, "Reaped a failed request; %s\n", strerror(-r->status));
+        LOG(LOG_WARNING, "Reaped a failed request for \"%s\"; %s\n", r->path, strerror(-r->status));
         status = r->status;
         goto done;
     }
