@@ -1302,18 +1302,19 @@ cache_init(cache_t *c,
         ustate_t *ustate = &c->ustates[i];
 
         /* Allocate requests (queue entries). */
-        if ((ustate->free = mmap_alloc(queue_depth * sizeof(request_t))) == NULL) {
+        if ((ustate->head = mmap_alloc(queue_depth * sizeof(request_t))) == NULL) {
             cache_destroy(c);
             LOG(LOG_CRITICAL, "mmap_alloc failed.\n");
             return -ENOMEM;
         }
-        ustate->head = ustate->free;
+        ustate->free = ustate->head;
 
         /* Initialize requests. */
         LOG(LOG_DEBUG, "initializing free queue with %d entries.\n", queue_depth);
         for (int j = 0; j < queue_depth; j++) {
-            ustate->free[i].next = &ustate->free[(i + 1) % queue_depth];
-            ustate->free[i].prev = &ustate->free[(i - 1) % queue_depth];
+            request_t *queue = ustate->free;
+            queue[i].next = i + 1 < queue_depth ? &queue[i + 1] : NULL;
+            queue[i].prev = i - 1 < queue_depth ? &queue[i - 1] : NULL;
         }
         int len;
         QUEUE_LEN(ustate->free, next, prev, len);
