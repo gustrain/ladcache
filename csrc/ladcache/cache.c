@@ -1188,6 +1188,7 @@ cache_get_reap(ustate_t *user, request_t **out)
 
     /* Check if the request failed. */
     if (r->status < 0) {
+        LOG(LOG_WARNING, "Reaped a failed request; %s\n", r->status);
         status = r->status;
         goto done;
     }
