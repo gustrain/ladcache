@@ -70,7 +70,8 @@
             (out) = (head);                                                   \
             (head) = (head)->next;                                            \
             if ((head) != NULL) {                                             \
-                  (head)->prev = NULL;                                        \
+                  /* Access to tail without a forward loop. */                \
+                  (head)->prev = (out)->prev;                                 \
             }                                                                 \
             int __new;                                                        \
             QUEUE_LEN(head, next, prev, __new);                               \
@@ -103,14 +104,13 @@
             QUEUE_LEN(head, next, prev, __old);                               \
             if ((head) == NULL) {                                             \
                   (head) = (elem);                                            \
-                  (elem)->prev = NULL;                                        \
+                  (elem)->prev = (elem);                                      \
                   (elem)->next = NULL;                                        \
                   continue;                                                   \
             }                                                                 \
+            (head)->prev->next = (elem);                                      \
+            (elem)->prev = (head)->prev;                                      \
             (head)->prev = (elem);                                            \
-            (elem)->next = (head)->next;                                      \
-            (elem)->prev = NULL;                                              \
-            (head) = (elem);                                                  \
             int __new;                                                        \
             QUEUE_LEN(head, next, prev, __new);                               \
             LOG(LOG_DEBUG, "Pushing to %s, length %d -> %d.\n", #head, __old, __new);\

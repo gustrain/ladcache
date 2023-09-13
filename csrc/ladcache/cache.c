@@ -1289,6 +1289,12 @@ cache_init(cache_t *c,
            int max_unsynced,
            int n_users)
 {
+    /* Size arguments must all be >= 1, except for MAX_UNSYNCED, for which a
+       zero value indicates infinite size. */
+    assert(capacity >= 1);
+    assert(queue_depth >= 1);
+    assert(n_users >= 1);
+
     /* Allocate user states. */
     if ((c->ustates = mmap_alloc(n_users * sizeof(ustate_t))) == NULL) {
         LOG(LOG_CRITICAL, "mmap_alloc failed.\n");
@@ -1310,19 +1316,14 @@ cache_init(cache_t *c,
         ustate->free = ustate->head;
 
         /* Initialize requests. */
-        LOG(LOG_DEBUG, "initializing free queue with %d entries.\n", queue_depth);
         for (int j = 0; j < queue_depth; j++) {
             request_t *queue = ustate->free;
             queue[j].next = j + 1 < queue_depth ? &queue[j + 1] : NULL;
             queue[j].prev = j - 1 < queue_depth ? &queue[j - 1] : NULL;
         }
-        int len;
-        QUEUE_LEN(ustate->free, next, prev, len);
-        LOG(LOG_DEBUG, "verify: length of free queue is %d.\n", len);
 
-        /* Ensure the list is NULL terminated. */
-        ustate->free[0].prev = NULL;
-        ustate->free[queue_depth - 1].next = NULL;
+        /* Easy access to the tail without creating a forward loop. */
+        ustate->free[0].prev = &ustate->free[queue_depth - 1];
 
         /* The other queues start empty. */
         ustate->ready = NULL;
