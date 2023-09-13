@@ -1172,10 +1172,13 @@ cache_get_submit(ustate_t *user, char *path)
 }
 
 /* Reap a completed request for USER. Points OUT to a completed request. Returns
-   0 on sucess, -errno on failure. */
+   0 on sucess, -errno on failure. Unless -EAGAIN is retured, OUT will point to
+   a request_t struct (successful or not) taken from the done queue. */
 int
 cache_get_reap(ustate_t *user, request_t **out)
 {
+    int status = 0;
+
     /* Try to get a completed request. */
     request_t *r = NULL;
     QUEUE_POP_SAFE(user->done, &user->done_lock, next, prev, r);
@@ -1185,23 +1188,27 @@ cache_get_reap(ustate_t *user, request_t **out)
 
     /* Check if the request failed. */
     if (r->status < 0) {
-        return r->status;
+        status = r->status;
+        goto done;
     }
 
     /* Open the shm object. */
     if ((r->ufd_shm = shm_open(r->shm_path, O_RDONLY, S_IRUSR)) < 0) {
         LOG(LOG_ERROR, "shm_open failed; \"%s\"; %s\n", r->shm_path, strerror(errno));
-        return -errno;
+        status = -errno;
+        goto done;
     }
 
     /* Create the mmap. */
     if (mmap(r->udata, r->size, PROT_READ, FLAG_NONE, r->ufd_shm, 0) < 0) {
         LOG(LOG_ERROR, "mmap failed; %s\n", strerror(errno));
-        return -errno;
+        status = -errno;
+        goto done;
     }
 
+   done:
     *out = r;
-    return 0;
+    return status;
 }
 
 /* Spin on cache_get_reap until an entry becomes ready. Returns 0 on success,
