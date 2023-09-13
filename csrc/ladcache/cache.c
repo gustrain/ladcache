@@ -884,7 +884,6 @@ cache_remote_load(void *args)
     shmify(request->path, request->shm_path, MAX_PATH_LEN + 1, MAX_SHM_PATH_LEN + 1);
     request->_lfd_shm = shm_alloc(request->shm_path, &request->_ldata, request->size);
     memcpy(request->_ldata, response->data, request->size);
-    QUEUE_PUSH_SAFE(user->done, &user->done_lock, next, prev, request);
     
     LOG(LOG_DEBUG, "Received \"%s\" (%u bytes) from %s.\n", request->path, response->header.length, inet_ntoa((struct in_addr) {.s_addr = loc->ip}));
 
