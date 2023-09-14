@@ -406,7 +406,7 @@ static struct PyModuleDef LADCacheModule = {
     } while (0)
 
 PyMODINIT_FUNC
-PyInit_AsyncLoader(void)
+PyInit_ladcache(void)
 {
     /* Create module. */
     PyObject *module;
