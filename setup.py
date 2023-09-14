@@ -11,7 +11,7 @@ with open('README.md', 'r') as f:
 module_ladcache = Extension(
     'ladcache',
     sources = [
-        'csrc/ladcachemodule/ladcachemodule.c'
+        'csrc/ladcachemodule/ladcachemodule.c',
         'csrc/ladcache/cache.c',
         'csrc/utils/alloc.c',
     ],
