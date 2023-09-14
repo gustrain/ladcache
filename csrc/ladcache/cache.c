@@ -79,7 +79,7 @@ shmify(char *in, char *out, size_t in_length, size_t out_length)
     assert(out_length > 0);
 
     out[0] = '/';
-    for (int i = 0; i < MIN(in_length, out_length - 1); i++) {
+    for (size_t i = 0; i < MIN(in_length, out_length - 1); i++) {
         /* Replace all occurences of '/' with '_'. */
         out[i + 1] = in[i] == '/' ? '_' : in[i];
         if (in[i] == '\0') {
