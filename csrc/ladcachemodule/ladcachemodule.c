@@ -119,7 +119,7 @@ static PyMethodDef Request_methods[] = {
 /* Request type declaration. */
 static PyTypeObject PythonRequestType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "LADCache.Request",
+    .tp_name = "ladcache.Request",
     .tp_doc = PyDoc_STR("File request"),
     .tp_basicsize = sizeof(Request),
     .tp_itemsize = 0,
@@ -216,7 +216,7 @@ static PyMethodDef UserState_methods[] = {
 /* UserState type declaration. */
 static PyTypeObject PythonUserStateType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "LADCache.UserState",
+    .tp_name = "ladcache.UserState",
     .tp_doc = PyDoc_STR("LADCache user context"),
     .tp_basicsize = sizeof(UserState),
     .tp_itemsize = 0,
@@ -328,7 +328,7 @@ static PyMethodDef Cache_methods[] = {
 /* Cache type declaration. */
 static PyTypeObject PythonCacheType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "LADCache.Cache",
+    .tp_name = "ladcache.Cache",
     .tp_doc = PyDoc_STR("LADCache cache"),
     .tp_basicsize = sizeof(Cache),
     .tp_itemsize = 0,
@@ -348,7 +348,7 @@ static PyTypeObject PythonCacheType = {
 /* Module definition. */
 static struct PyModuleDef LADCacheModule = {
    PyModuleDef_HEAD_INIT,
-   .m_name = "LADCache",
+   .m_name = "ladcache",
    .m_doc = "Locality-aware distributed cache.",
    .m_size = -1,
    .m_methods = NULL,
