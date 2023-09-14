@@ -30,10 +30,12 @@
 
 /* Input validation. */
 #define ARG_CHECK(valid_condition, error_string, return_fail)                  \
-   if (!(valid_condition)) {                                                   \
-      PyErr_SetString(PyExc_Exception, error_string);                          \
-      return return_fail;                                                      \
-   }
+   do {                                                                        \
+      if (!(valid_condition)) {                                                \
+         PyErr_SetString(PyExc_Exception, error_string);                       \
+         return return_fail;                                                   \
+      }                                                                        \
+   } while (0)
 
 
 /* --------- */
@@ -58,6 +60,7 @@ typedef struct {
 typedef struct {
    PyObject_HEAD
 
+   ustate_t  *ustate;
    request_t *request;
 } Request;
 
@@ -66,32 +69,35 @@ typedef struct {
 /*   `Request` METHODS   */
 /* --------------------- */
 
-/* Request initializer. TODO. */
-static int
-Request_init(PyObject *self, PyObject *args, PyObject *kwds)
-{
-   return -1;
-}
-
-/* TODO. Get the filepath this request loaded. */
+/* Get the filepath this request loaded. */
 PyObject *
 Request_get_filepath(PyObject *self, PyObject *args, PyObject *kwds)
 {
-
+   return PyBytes_FromString(((Request *) self)->request->path);
 }
 
-/* TODO. Get the data loaded by this request. */
+/* Get the data loaded by this request. */
 PyObject *
 Request_get_data(PyObject *self, PyObject *args, PyObject *kwds)
 {
-   return NULL;
+   Request *r = (Request *) self;
+
+   return PyBytes_FromStringAndSize((char *) r->request->udata, r->request->size);
 }
 
-/* TODO. Release this request. */
+/* Release this request. */
 PyObject *
-Request_release(PyObject *self, PyObject *args, PyObject *kwds)
+Request_dealloc(PyObject *self, PyObject *args, PyObject *kwds)
 {
-   return NULL;
+   Request *r = (Request *) self;
+
+   /* Release the wrapped request. */
+   if (r->request != NULL) {
+      cache_release(r->ustate, r->request);
+   }
+
+   /* Release this object. */
+   Py_TYPE(self)->tp_free(self);
 }
 
 /* Request methods array. */
@@ -107,12 +113,6 @@ static PyMethodDef Request_methods[] = {
       (PyCFunction) Request_get_data,
       METH_NOARGS,
       "Get the data loaded by this request."
-   },
-   {
-      "release",
-      (PyCFunction) Request_release,
-      METH_NOARGS,
-      "Release this request."
    }
 };
 
@@ -126,7 +126,7 @@ static PyTypeObject PythonRequestType = {
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
 
     /* Methods. */
-    .tp_init = Request_init,
+    .tp_dealloc = Request_dealloc,
     .tp_methods = Request_methods,
 };
 
@@ -191,6 +191,7 @@ UserState_reap(PyObject *self, PyObject *args, PyObject *kwds)
       cache_release(user_state->ustate, out); /* Don't leak internal structs. */
       return NULL;
    }
+   request->ustate = user_state->ustate;
    request->request = out;
 
    return request;
