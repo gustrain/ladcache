@@ -36,7 +36,7 @@
 #include "../../csrc/utils/fifo.h"
 
 #define DEFAULT_MAX_UNSYNCED 2
-#define DEFAULT_CAPACITY 16 * 1024 * 1024 * 1024
+#define DEFAULT_CAPACITY 16ul * 1024ul * 1024ul * 1024ul
 #define DEFAULT_QDEPTH 64
 #define DEFAULT_USERS 1
 
