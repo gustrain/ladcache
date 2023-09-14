@@ -44,21 +44,29 @@
 #include <fcntl.h>
 #include <sched.h>
 
-#define N_HT_LOCKS (16)
-#define PORT_DEFAULT (8080)
-#define MAX_QUEUE_REQUESTS 64
-#define SOCKET_TIMEOUT_S (5)
-#define REGISTER_PERIOD_S (5)
+#define PORT_DEFAULT (8080)     /* Default port for TCP and UDP connections. */
+#define MAX_QUEUE_REQUESTS 64   /* Maximum number of queued network requests. */
+#define SOCKET_TIMEOUT_S (5)    /* Registrar loop socket timeout. */
+#define REGISTER_PERIOD_S (5)   /* Registrar loop broadcast period. */
 
 #define LOG(level, fmt, ...) DEBUG_LOG(SCOPE_INT, level, fmt, ## __VA_ARGS__)
-
 #define MIN(a, b) ((a) > (b) ? (a) : (b))
-#define NOT_REACHED()       \
-    do {                    \
-        assert(false);      \
+#define NOT_REACHED() assert(false)
+
+/* Fail if a spin lock does not init*/
+#define SPIN_MUST_INIT(spinlock)                                               \
+    do {                                                                       \
+        assert(!pthread_spin_init(spinlock, PTHREAD_PROCESS_SHARED));          \
     } while (0)
-#define SPINLOCK_MUST_INIT(spinlock)    \
-    assert(!pthread_spin_init(spinlock, PTHREAD_PROCESS_SHARED))
+
+/* Signal a non-zero PID. */
+#define KILL_NOT_ZERO(pid, sig)                                                \
+    do {                                                                       \
+        if (pid != 0) {                                                        \
+            kill(pid, sig);                                                    \
+        }                                                                      \
+    } while (0)
+
 
 /* --------- */
 /*   MISC.   */
@@ -1280,6 +1288,11 @@ cache_destroy(cache_t *c)
         mmap_free(c->ustates, c->n_users * sizeof(ustate_t));
     }
 
+    /* Kill the backend threads, if initialized. */
+    KILL_NOT_ZERO(c->registrar_thread, SIGKILL);
+    KILL_NOT_ZERO(c->monitor_thread, SIGKILL);
+    KILL_NOT_ZERO(c->manager_thread, SIGKILL);
+
     /* Destroy the cache struct itself. */
     mmap_free(c, sizeof(cache_t));
 }
@@ -1342,10 +1355,10 @@ cache_init(cache_t *c,
         }
 
         /* Initialize the locks. */
-        SPINLOCK_MUST_INIT(&ustate->free_lock);
-        SPINLOCK_MUST_INIT(&ustate->ready_lock);
-        SPINLOCK_MUST_INIT(&ustate->done_lock);
-        SPINLOCK_MUST_INIT(&ustate->cleanup_lock);
+        SPIN_MUST_INIT(&ustate->free_lock);
+        SPIN_MUST_INIT(&ustate->ready_lock);
+        SPIN_MUST_INIT(&ustate->done_lock);
+        SPIN_MUST_INIT(&ustate->cleanup_lock);
     }
 
     /* Set up the local cache. */
@@ -1360,11 +1373,14 @@ cache_init(cache_t *c,
 
     /* Set up the remote cache. */
     c->rcache.ht = NULL;
-    SPINLOCK_MUST_INIT(&c->rcache.ht_lock);
+    SPIN_MUST_INIT(&c->rcache.ht_lock);
 
     /* Set up the total cache. */
+    c->registrar_thread = 0;
+    c->monitor_thread = 0;
+    c->manager_thread = 0;
     c->peers = NULL;
-    SPINLOCK_MUST_INIT(&c->peer_lock);
+    SPIN_MUST_INIT(&c->peer_lock);
 
     /* Get a unique (actually random) number to serve as this machine's ID to
        avoid self-adding. See comments in cache.h for more details. */
