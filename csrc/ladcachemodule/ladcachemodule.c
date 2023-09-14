@@ -29,12 +29,12 @@
 #include "../utils/log.h"
 
 /* Input validation. */
-#define ARG_CHECK(valid_condition, error_string, return_fail)                        \
-    do {                                                                                                \
-        if (!(valid_condition)) {                                                                \
-            PyErr_SetString(PyExc_Exception, error_string);                              \
-            return return_fail;                                                                    \
-        }                                                                                                \
+#define ARG_CHECK(valid_condition, error_string, return_fail)                  \
+    do {                                                                       \
+        if (!(valid_condition)) {                                              \
+            PyErr_SetString(PyExc_Exception, error_string);                    \
+            return return_fail;                                                \
+        }                                                                      \
     } while (0)
 
 
