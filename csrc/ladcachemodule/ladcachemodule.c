@@ -62,74 +62,6 @@ typedef struct {
 } Request;
 
 
-/* ----------------------- */
-/*   `UserState` METHODS   */
-/* ----------------------- */
-
-/* UserState initializer. TODO. */
-static int
-UserState_init(PyObject *self, PyObject *args, PyObject *kwds)
-{
-   return -1;
-}
-
-/* TODO. Submit a request for a file to be loaded. */
-PyObject *
-UserState_submit()
-{
-   return NULL;
-}
-
-/* TODO. Reap a request, returning None if none are available. */
-PyObject *
-UserState_reap()
-{
-   return NULL;
-}
-
-/* TODO. Reap a request, waiting until one becomes available. */
-PyObject *
-UserState_reap_wait()
-{
-   return NULL;
-}
-
-/* UserState methods array. */
-static PyMethodDef UserState_methods[] = {
-   {
-   "submit",
-   (PyCFunction) UserState_submit,
-   METH_VARARGS | METH_KEYWORDS,
-   "Submit a request for a file to be loaded."
-   },
-   {
-      "reap",
-      (PyCFunction) UserState_reap,
-      METH_NOARGS,
-      "Reap a request, returning None if none are available."
-   },
-   {
-      "reap_wait",
-      (PyCFunction) UserState_reap_wait,
-      METH_NOARGS,
-      "Reap a request, waiting until one becomes available."
-   },
-};
-
-/* UserState type declaration. */
-static PyTypeObject PythonUserStateType = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "LADCache.UserState",
-    .tp_doc = PyDoc_STR("LADCache user context"),
-    .tp_basicsize = sizeof(UserState),
-    .tp_itemsize = 0,
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
-
-    /* Methods. */
-    .tp_init = UserState_init,
-    .tp_methods = UserState_methods,
-};
-
 /* --------------------  */
 /*   `Request` METHODS   */
 /* --------------------- */
@@ -143,21 +75,21 @@ Request_init(PyObject *self, PyObject *args, PyObject *kwds)
 
 /* TODO. Get the filepath this request loaded. */
 PyObject *
-Request_get_filepath()
+Request_get_filepath(PyObject *self, PyObject *args, PyObject *kwds)
 {
 
 }
 
 /* TODO. Get the data loaded by this request. */
 PyObject *
-Request_get_data()
+Request_get_data(PyObject *self, PyObject *args, PyObject *kwds)
 {
    return NULL;
 }
 
 /* TODO. Release this request. */
 PyObject *
-Request_release()
+Request_release(PyObject *self, PyObject *args, PyObject *kwds)
 {
    return NULL;
 }
@@ -196,6 +128,101 @@ static PyTypeObject PythonRequestType = {
     /* Methods. */
     .tp_init = Request_init,
     .tp_methods = Request_methods,
+};
+
+
+/* ----------------------- */
+/*   `UserState` METHODS   */
+/* ----------------------- */
+
+/* Submit a request for a file to be loaded. */
+PyObject *
+UserState_submit(PyObject *self, PyObject *args, PyObject *kwds)
+{
+   char *filepath;
+
+   /* Parse arguments. */
+   char *kwlist[] = {"filepath"};
+   if (!PyArg_ParseTupleAndKeywords(args, kwds, "s", kwlist, filepath)) {
+      PyErr_SetString(PyExc_Exception, "missing/invalid argument");
+      return -1;
+   }
+
+   int status = cache_get_submit(((UserState *) self)->ustate, filepath);
+   if (status < 0) {
+      PyErr_SetString(PyExc_Exception, strerror(-status));
+      free(filepath);
+      return NULL;
+   }
+
+   free(filepath);
+   return Py_None;
+}
+
+/* Reap a request. Waits until a request becomes available, unless WAIT is not
+   set, in which case None will be returned if no requests are available. */
+PyObject *
+UserState_reap(PyObject *self, PyObject *args, PyObject *kwds)
+{
+   UserState *user_state = (UserState *) self;
+   int wait = 1; /* Predicate arguments fill 4 bytes. */
+
+   /* Parse arguments. */
+   char *kwlist[] = {"wait"};
+   if (!PyArg_ParseTupleAndKeywords(args, kwds, "|p", kwlist, &wait)) {
+      PyErr_SetString(PyExc_Exception, "missing/invalid argument");
+      return -1;
+   }
+
+   request_t *out;
+   int status = wait ? cache_get_reap_wait(user_state->ustate, &out) :
+                       cache_get_reap(user_state->ustate, &out);
+   if (status == EAGAIN) {
+      return Py_None;
+   } else if (status < 0) {
+      PyErr_Format(PyExc_Exception, strerror(-status));
+      return NULL;
+   }
+
+   /* Allocate and fill the wrapper. */
+   Request *request = Py_TYPE(user_state)->tp_alloc(&PythonRequestType, 0);
+   if (request == NULL) {
+      PyErr_SetString(PyExc_Exception, "unable to allocate wrapper");
+      cache_release(user_state->ustate, out); /* Don't leak internal structs. */
+      return NULL;
+   }
+   request->request = out;
+
+   return request;
+}
+
+/* UserState methods array. */
+static PyMethodDef UserState_methods[] = {
+   {
+      "submit",
+      (PyCFunction) UserState_submit,
+      METH_VARARGS | METH_KEYWORDS,
+      "Submit a request for a file to be loaded."
+   },
+   {
+      "reap",
+      (PyCFunction) UserState_reap,
+      METH_VARARGS | METH_KEYWORDS,
+      "Reap a request."
+   }
+};
+
+/* UserState type declaration. */
+static PyTypeObject PythonUserStateType = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "LADCache.UserState",
+    .tp_doc = PyDoc_STR("LADCache user context"),
+    .tp_basicsize = sizeof(UserState),
+    .tp_itemsize = 0,
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+
+    /* Methods. */
+    .tp_methods = UserState_methods,
 };
 
 
