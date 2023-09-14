@@ -223,8 +223,8 @@ typedef struct {
     lcache_t  lcache;   /* Local cache. */
     rcache_t  rcache;   /* Remote cache. */
     uint64_t  random;   /* 64-bit random value from /dev/urandom. */
-    int       n_users;  /* Number of users. */
-    int       qdepth;   /* Queue depth. */
+    uint32_t  n_users;  /* Number of users. */
+    uint32_t  qdepth;   /* Queue depth. */
     peer_t   *peers;    /* Iterable hash table of peers. */
 
     /* Threading info. */
@@ -244,11 +244,16 @@ cache_t *cache_new(void);
 void cache_destroy(cache_t *c);
 int cache_init(cache_t *c, size_t capacity, int queue_depth, int max_unsynced, int n_users);
 
-/* Interface methods. */
+/* Thread management methods. */
+int manager_spawn(cache_t *c);
+int monitor_spawn(cache_t *c);
+int registrar_spawn(cache_t *c);
 void cache_become_manager(cache_t *c);
 void cache_become_monitor(cache_t *c);
 void cache_become_registrar(cache_t *c);
 int cache_start(cache_t *c);
+
+/* Interface methods. */
 int cache_get_submit(ustate_t *user, char *path);
 int cache_get_reap(ustate_t *user, request_t **out);
 int cache_get_reap_wait(ustate_t *user, request_t **out);

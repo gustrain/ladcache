@@ -39,7 +39,7 @@
 
 
 /* --------- */
-/*    TYPES    */
+/*   TYPES   */
 /* --------- */
 
 /* Python ustate_t wrapper. */
@@ -48,6 +48,7 @@ typedef struct {
 
     ustate_t *ustate;
 } UserState;
+static PyTypeObject PythonUserStateType;
 
 /* Python cache_t wrapper. */
 typedef struct {
@@ -55,6 +56,7 @@ typedef struct {
 
     cache_t *cache;
 } Cache;
+static PyTypeObject PythonCacheType;
 
 /* Python request_t wrapper. */
 typedef struct {
@@ -63,6 +65,7 @@ typedef struct {
     ustate_t  *ustate;
     request_t *request;
 } Request;
+static PyTypeObject PythonRequestType;
 
 
 /* --------------------  */
@@ -86,8 +89,8 @@ Request_get_data(PyObject *self, PyObject *args, PyObject *kwds)
 }
 
 /* Release this request. */
-PyObject *
-Request_dealloc(PyObject *self, PyObject *args, PyObject *kwds)
+static void
+Request_dealloc(PyObject *self)
 {
     Request *r = (Request *) self;
 
@@ -97,7 +100,7 @@ Request_dealloc(PyObject *self, PyObject *args, PyObject *kwds)
     }
 
     /* Release this object. */
-    Py_TYPE(self)->tp_free(self);
+    Py_TYPE(&PythonRequestType)->tp_free(self);
 }
 
 /* Request methods array. */
@@ -143,9 +146,9 @@ UserState_submit(PyObject *self, PyObject *args, PyObject *kwds)
 
     /* Parse arguments. */
     char *kwlist[] = {"filepath"};
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "s", kwlist, filepath)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "s", kwlist, &filepath)) {
         PyErr_SetString(PyExc_Exception, "missing/invalid argument");
-        return -1;
+        return NULL;
     }
 
     int status = cache_get_submit(((UserState *) self)->ustate, filepath);
@@ -171,7 +174,7 @@ UserState_reap(PyObject *self, PyObject *args, PyObject *kwds)
     char *kwlist[] = {"wait"};
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|p", kwlist, &wait)) {
         PyErr_SetString(PyExc_Exception, "missing/invalid argument");
-        return -1;
+        return NULL;
     }
 
     request_t *out;
@@ -185,7 +188,7 @@ UserState_reap(PyObject *self, PyObject *args, PyObject *kwds)
     }
 
     /* Allocate and fill the wrapper. */
-    Request *request = Py_TYPE(user_state)->tp_alloc(&PythonRequestType, 0);
+    Request *request = (Request *) Py_TYPE(&PythonRequestType)->tp_alloc(&PythonRequestType, 0);
     if (request == NULL) {
         PyErr_SetString(PyExc_Exception, "unable to allocate wrapper");
         cache_release(user_state->ustate, out); /* Don't leak internal structs. */
@@ -194,7 +197,7 @@ UserState_reap(PyObject *self, PyObject *args, PyObject *kwds)
     request->ustate = user_state->ustate;
     request->request = out;
 
-    return request;
+    return (PyObject *) request;
 }
 
 /* UserState methods array. */
@@ -237,7 +240,7 @@ Cache_dealloc(PyObject *self)
 {
     /* Destroy the cache and free the wrapper. */
     cache_destroy(((Cache *) self)->cache);
-    Py_TYPE(self)->tp_free(self);
+    Py_TYPE(&PythonCacheType)->tp_free(self);
 }
 
 /* Cache initializer. */
@@ -298,14 +301,14 @@ Cache_get_user_state(PyObject *self, PyObject *args, PyObject *kwds)
     char *kwlist[] = {"index"};
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "I", kwlist, &index)) {
         PyErr_SetString(PyExc_Exception, "missing/invalid argument");
-        return -1;
+        return NULL;
     }
 
     /* Validate index is within range. */
-    ARG_CHECK(index < c->cache->n_users, "invalid user index", -1);
+    ARG_CHECK(index < c->cache->n_users, "invalid user index", NULL);
 
     /* Allocate and fill the wrapper. */
-    UserState *user_state = Py_TYPE(user_state)->tp_alloc(&PythonUserStateType, 0);
+    UserState *user_state = (UserState *) Py_TYPE(&PythonUserStateType)->tp_alloc(&PythonUserStateType, 0);
     if (user_state == NULL) {
         PyErr_SetString(PyExc_Exception, "unable to allocate wrapper");
         return NULL;
@@ -330,12 +333,14 @@ Cache_start(PyObject *self, PyObject *args, PyObject *kwds)
        this thread to become the registrar, as opposed to spawning a new thread
        for that and returning here. */
     int status;
-    if ((status = manager_spawn(c)) < 0) {
-        return status;
+    if ((status = manager_spawn(c->cache)) < 0) {
+        DEBUG_LOG(SCOPE_INT, LOG_CRITICAL, "Failed to spawn manager; %s\n", strerror(-status));
+        return NULL;
     }
-    if ((status = monitor_spawn(c)) < 0) {
+    if ((status = monitor_spawn(c->cache)) < 0) {
+        DEBUG_LOG(SCOPE_INT, LOG_CRITICAL, "Failed to spawn monitor; %s\n", strerror(-status));
         kill(c->cache->manager_thread, SIGKILL);
-        return status;
+        return NULL;
     }
 
     /* Become the registrar. */

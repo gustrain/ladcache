@@ -582,7 +582,7 @@ monitor_loop(void *args)
 /* Spawns a new thread running the monitor loop. Returns 0 on success, -errno on
    failure. */
 int
-static monitor_spawn(cache_t *c)
+monitor_spawn(cache_t *c)
 {
     return -pthread_create(&c->monitor_thread, NULL, monitor_loop, c);
 }
@@ -708,7 +708,7 @@ registrar_loop(void *args)
 }
 
 /* Spawn a thread running the registrar loop. */
-static int
+int
 registrar_spawn(cache_t *c)
 {
     return -pthread_create(&c->registrar_thread, NULL, registrar_loop, c);
@@ -1132,7 +1132,7 @@ manager_loop(void *args)
 
 /* Spawns a new thread running the manager loop. Returns 0 on success, -errno on
    failure. */
-static int
+int
 manager_spawn(cache_t *c)
 {
     return -pthread_create(&c->manager_thread, NULL, manager_loop, c);
@@ -1303,7 +1303,7 @@ cache_destroy(cache_t *c)
     /* Free all of the user states. */
     if (c->ustates != NULL) {
         /* Free the queues. */
-        for (int i = 0; i < c->n_users; i++) {
+        for (uint32_t i = 0; i < c->n_users; i++) {
             mmap_free(c->ustates[i].head, c->qdepth * sizeof(request_t));
             io_uring_queue_exit(&c->ustates[i].ring);
         }
@@ -1344,7 +1344,7 @@ cache_init(cache_t *c,
     /* Initialize user states. */
     c->n_users = n_users;
     c->qdepth = queue_depth;
-    for (int i = 0; i < c->n_users; i++) {
+    for (uint32_t i = 0; i < c->n_users; i++) {
         ustate_t *ustate = &c->ustates[i];
 
         /* Allocate requests (queue entries). */
