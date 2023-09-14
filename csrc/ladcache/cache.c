@@ -72,7 +72,7 @@
 /* --------- */
 
 /* Copy IN to OUT, but reformatted to fit shm naming requirements. */
-void
+static void
 shmify(char *in, char *out, size_t in_length, size_t out_length)
 {
     assert(out_length > 0);
@@ -90,7 +90,7 @@ shmify(char *in, char *out, size_t in_length, size_t out_length)
 /* An implementation of strncpy_s, i.e., strncpy that doesn't clobber the
    remainder of the destination buffer with zeros. Modified from example given
    at: https://linux.die.net/man/3/strncpy. */
-char *
+static char *
 strncpy_s(char *dest, const char *src, size_t n)
 {
     size_t i;
@@ -151,7 +151,7 @@ print_header(message_t *header) {
 
 /* Open a socket to IP (network byte order) on the default port. Returns FD on
    success, -errno on failure. */
-int
+static int
 network_connect(in_addr_t ip)
 {
     struct sockaddr_in peer_addr = {
@@ -180,7 +180,7 @@ network_connect(in_addr_t ip)
 /* Allocates a message_t struct, points OUT to it, and reads a message from FD
    (socket) into it. OUT must only be freed by the user if the function returns
    successfully. Returns 0 on success, -errno on failure. */
-int
+static int
 network_get_message(int fd, message_t **out)
 {
     ssize_t bytes, temp;
@@ -229,7 +229,7 @@ network_get_message(int fd, message_t **out)
 /* Constructs and sends a message to the socket on FD with SIZE bytes of DATA
    as the payload. Does NOT close FD once finished. Returns 0 on sucess and
    -errno on failure. */
-int
+static int
 network_send_message(mtype_t type, int flags, const void *data, uint32_t size, int fd)
 {
     /* Configure and send the header. */
@@ -274,7 +274,7 @@ network_send_message(mtype_t type, int flags, const void *data, uint32_t size, i
 
 /* Announce our existence to other members of the distributed cache. Returns 0
    on success and -errno on failure. */
-int
+static int
 cache_register(cache_t *c)
 {
     /* Create broadcast socket. */
@@ -330,7 +330,7 @@ cache_register(cache_t *c)
 /* Send a message to every known peer with our list of newly-cached files.
    Returns 0 on success, -errno on failure. Assumes that there is at least one
    unsynced filepath in the list. */
-int
+static int
 cache_sync(cache_t *c)
 {
     /* No-op if the unsynced list is already empty. */
@@ -401,7 +401,7 @@ cache_sync(cache_t *c)
 
 /* Handle a file request by sending the requested file data. Returns 0 on
    success, -errno on failure. */
-int
+static int
 monitor_handle_request(message_t *message, cache_t *c, int fd)
 {
     struct sockaddr_in addr;
@@ -430,7 +430,7 @@ monitor_handle_request(message_t *message, cache_t *c, int fd)
 }
 
 /* Handle a directory sync message. */
-int
+static int
 monitor_handle_sync(message_t *message, cache_t *c, int fd)
 {
     /* TODO. Verify filepaths are valid ('\0' terminated, etc.) */
@@ -486,7 +486,7 @@ struct monitor_handle_connection_args {
 };
 
 /* Handles a remote read request. */
-void *
+static void *
 monitor_handle_connection(void *args)
 {
     /* Get the arguments passed to us. */
@@ -517,7 +517,7 @@ monitor_handle_connection(void *args)
 
 /* Monitor main loop. Handles all incoming remote read requests. Should never
    return when running correctly. On failure returns negative errno value. */
-void *
+static void *
 monitor_loop(void *args)
 {
     cache_t *c = (cache_t *) args;
@@ -582,7 +582,7 @@ monitor_loop(void *args)
 /* Spawns a new thread running the monitor loop. Returns 0 on success, -errno on
    failure. */
 int
-monitor_spawn(cache_t *c)
+static monitor_spawn(cache_t *c)
 {
     return -pthread_create(&c->monitor_thread, NULL, monitor_loop, c);
 }
@@ -593,7 +593,7 @@ monitor_spawn(cache_t *c)
 /* ----------------------------- */
 
 /* Loop to listen for incoming UDP registration datagrams. */
-void *
+static void *
 registrar_loop(void *args)
 {
     cache_t *c = (cache_t *) args;
@@ -708,7 +708,7 @@ registrar_loop(void *args)
 }
 
 /* Spawn a thread running the registrar loop. */
-int
+static int
 registrar_spawn(cache_t *c)
 {
     return -pthread_create(&c->registrar_thread, NULL, registrar_loop, c);
@@ -720,7 +720,7 @@ registrar_spawn(cache_t *c)
 /* ----------------------------------------- */
 
 /* Checks the local cache for PATH. Returns TRUE if contained, FALSE if not. */
-bool
+static bool
 cache_local_contains(lcache_t *lc, char *path)
 {
     lloc_t *loc = NULL;
@@ -732,7 +732,7 @@ cache_local_contains(lcache_t *lc, char *path)
 /* Caches SIZE bytes of DATA using PATH as the key. Copies DATA into a newly
    allocated shm object. Returns 0 on success, and a negative errno value on
    failure. */
-int
+static int
 cache_local_store(lcache_t *lc, char *path, uint8_t *data, size_t size)
 {
     /* Verify we can fit this in the cache. */
@@ -770,7 +770,7 @@ cache_local_store(lcache_t *lc, char *path, uint8_t *data, size_t size)
 
 /* Fill a request with data from the local cache. Returns 0 on success, -errno
    on failure. */
-int
+static int
 cache_local_load(lcache_t *lc, request_t *request)
 {
     /* Get the location record of the cached file. */
@@ -796,7 +796,7 @@ cache_local_load(lcache_t *lc, request_t *request)
 /* ------------------------------------------ */
 
 /* Checks the remote cache for PATH. Returns TRUE if contained, FALSE if not. */
-bool
+static bool
 cache_remote_contains(rcache_t *rc, char *path)
 {
     rloc_t *loc = NULL;
@@ -816,7 +816,7 @@ struct cache_remote_load_args {
    cache_remote_load_args struct, which will be freed once arguments have been
    parsed. Assumes that the caller has already removed REQUEST from USER's ready
    queue. The completed request will be placed into USER's done queue. */
-void *
+static void *
 cache_remote_load(void *args)
 {
     /* Get the arguments passed to us. */
@@ -907,7 +907,7 @@ cache_remote_load(void *args)
 /* --------------------------- */
 
 /* Submit an IO request to io_uring. Returns 0 on success, -errno on failure. */
-int
+static int
 manager_submit_io(ustate_t *ustate, request_t *r)
 {
     LOG(LOG_DEBUG, "Loading \"%s\" from storage.\n", r->path);
@@ -949,7 +949,7 @@ manager_submit_io(ustate_t *ustate, request_t *r)
 /* Check whether USTATE has any backend resources to be cleaned up. If resources
    exist, clean up a single request_t struct per call. Returns 0 on success,
    -errno on failure. */
-void
+static void
 manager_check_cleanup(cache_t *c, ustate_t *ustate)
 {
     /* Check if there's anything in the queue. */
@@ -982,7 +982,7 @@ manager_check_cleanup(cache_t *c, ustate_t *ustate)
 
 /* Check whether USTATE has a pending request and execute it if it does. Returns
    0 on sucess, -errno on failure. */
-int
+static int
 manager_check_ready(cache_t *c, ustate_t *ustate)
 {
     /* Check if there's a request waiting in the ready queue. */
@@ -1039,7 +1039,7 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
 /* Check if any storage requests have completed their IO. Note that the network
    monitor handles completed network requests. Returns 0 on sucess, -errno on
    failure. */
-void
+static void
 manager_check_done(cache_t *c, ustate_t *ustate)
 {
     /* Drain the io_uring completion queue into our completion queue. Using
@@ -1087,7 +1087,7 @@ manager_check_done(cache_t *c, ustate_t *ustate)
 }
 
 /* Manager main loop. Handles all pending requests. */
-void *
+static void *
 manager_loop(void *args)
 {
     cache_t *c = (cache_t *) args;
@@ -1132,7 +1132,7 @@ manager_loop(void *args)
 
 /* Spawns a new thread running the manager loop. Returns 0 on success, -errno on
    failure. */
-int
+static int
 manager_spawn(cache_t *c)
 {
     return -pthread_create(&c->manager_thread, NULL, manager_loop, c);

@@ -27,7 +27,7 @@ module_ladcache = Extension(
     ],
 )
 
-setup(name = 'LADCache',
+setup(name = 'ladcache',
       version = VERSION,
       description = 'CPython locality-aware distributed cache module',
       long_description = long_description,
