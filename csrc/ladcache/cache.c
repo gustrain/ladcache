@@ -51,7 +51,6 @@
 
 #define LOG(level, fmt, ...) DEBUG_LOG(SCOPE_INT, level, fmt, ## __VA_ARGS__)
 #define MIN(a, b) ((a) > (b) ? (a) : (b))
-#define NOT_REACHED() assert(false)
 
 /* Fail if a spin lock does not init*/
 #define SPIN_MUST_INIT(spinlock)                                               \
@@ -1143,6 +1142,31 @@ manager_spawn(cache_t *c)
 /* ---------------------------------- */
 /*   GENERIC INTERFACE (user scope)   */
 /* ---------------------------------- */
+
+/* Become the manager thread. Does not return. */
+void
+cache_become_manager(cache_t *c)
+{
+    c->manager_thread = getpid();
+    manager_loop((void *) c);
+}
+
+/* Become the monitor thread. Does not return. */
+void
+cache_become_monitor(cache_t *c)
+{
+    c->monitor_thread = getpid();
+    monitor_loop((void *) c);
+}
+
+/* Become the registrar thread. Does not return. */
+void
+cache_become_registrar(cache_t *c)
+{
+    c->registrar_thread = getpid();
+    registrar_loop((void *) c);
+}
+
 
 /* Spawn the manager, the monitor, and the registrar. Returns 0 on success,
    -errno on failure. */

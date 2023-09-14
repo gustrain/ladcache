@@ -31,8 +31,9 @@
 #ifndef __CACHE_H__
 #define __CACHE_H__
 
-#define MAX_IDLE_ITERS 64 * 1024 * 1024
+#define NOT_REACHED() assert(false)
 
+#define MAX_IDLE_ITERS 64 * 1024 * 1024     /* Max idle iters before syncing. */
 #define MAX_PATH_LEN 128                    /* Not including \0. */
 #define MAX_SHM_PATH_LEN MAX_PATH_LEN + 1   /* Not including \0. */
 #define MAX_NAME_LEN 128                    /* Not including \0. */
@@ -244,6 +245,9 @@ void cache_destroy(cache_t *c);
 int cache_init(cache_t *c, size_t capacity, int queue_depth, int max_unsynced, int n_users);
 
 /* Interface methods. */
+void cache_become_manager(cache_t *c);
+void cache_become_monitor(cache_t *c);
+void cache_become_registrar(cache_t *c);
 int cache_start(cache_t *c);
 int cache_get_submit(ustate_t *user, char *path);
 int cache_get_reap(ustate_t *user, request_t **out);
