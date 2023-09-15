@@ -68,6 +68,19 @@ typedef struct {
 static PyTypeObject PythonRequestType;
 
 
+/* Generic object allocator. */
+static PyObject *
+Generic_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+   PyObject *self;
+   if ((self = type->tp_alloc(type, 0)) == NULL) {
+      PyErr_NoMemory();
+      return NULL;
+   }
+
+   return (PyObject *) self;
+}
+
 /* --------------------  */
 /*    `Request` METHODS    */
 /* --------------------- */
@@ -235,20 +248,6 @@ static PyTypeObject PythonUserStateType = {
 /*    `Cache` METHODS    */
 /* ------------------- */
 
-/* Cache allocator. */
-static PyObject *
-Cache_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
-{
-   /* Allocate the Loader struct. */
-   PyObject *self;
-   if ((self = type->tp_alloc(type, 0)) == NULL) {
-      PyErr_NoMemory();
-      return NULL;
-   }
-
-   return (PyObject *) self;
-}
-
 /* Cache deallocator. */
 static void
 Cache_dealloc(PyObject *self)
@@ -401,8 +400,8 @@ static PyTypeObject PythonCacheType = {
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
 
     /* Methods. */
+    .tp_new = Generic_new,
     .tp_init = Cache_init,
-    .tp_alloc = Cache_new,
     .tp_dealloc = Cache_dealloc,
     .tp_methods = Cache_methods,
 };
