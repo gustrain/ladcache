@@ -171,7 +171,7 @@ UserState_submit(PyObject *self, PyObject *args, PyObject *kwds)
     if (status < 0) {
         PyErr_SetString(PyExc_Exception, strerror(-status));
         free(filepath);
-        return NULL;
+        return status == -ENOENT ? Py_None : NULL; /* ENOENT is tolerable. */
     }
 
     free(filepath);
