@@ -101,7 +101,6 @@ def main():
 
     # Benchmark each directory.
     ctx = cache.get_user_state(0)
-    time.sleep(1)
     print("Benchmarking {} directories ({} bytes)".format(len(path_groups), total_size))
     for paths in path_groups:
         print("Directory \"{}\" ({} files)... ".format(directory, len(paths)), end="")

@@ -1268,8 +1268,12 @@ cache_get_reap_wait(ustate_t *user, request_t **out)
 void
 cache_release(ustate_t *user, request_t *request)
 {
+    if (request == NULL {
+        return
+    }
+
     if (request->status == 0) {
-        /* ISSUE: Leaking resources on failure. Needs to be more granular. */
+        /* ISSUE: Leaking resources on failures. Needs to be more granular. */
         munmap(request->udata, request->shm_size);
         close(request->ufd_shm);
     }
