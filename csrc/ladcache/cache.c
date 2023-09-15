@@ -55,7 +55,8 @@
 /* Fail if a spin lock does not init*/
 #define SPIN_MUST_INIT(spinlock)                                               \
     do {                                                                       \
-        assert(!pthread_spin_init(spinlock, PTHREAD_PROCESS_SHARED));          \
+        int status = pthread_spin_init(spinlock, PTHREAD_PROCESS_SHARED);      \
+        assert(!status);                                                       \
     } while (0)
 
 /* Signal a non-zero PID. */
@@ -1019,7 +1020,8 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
         /* Spawn a thread to handling requesting the file from the peer. It will
            take care of itself and doesn't require management. */
         pthread_t _;
-        assert(!pthread_create(&_, NULL, cache_remote_load, args));
+        int status = pthread_create(&_, NULL, cache_remote_load, args);
+        assert(!status);
 
         return 0;
     }
