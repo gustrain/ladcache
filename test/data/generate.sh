@@ -5,7 +5,7 @@ G=$((1024 * M))
 # Test configuration.
 SIZE_PER_CATEGORY=$((4 * G))
 CATEGORIES=(
-    $((64  * $K)),  # 64KB
+    $((64  * $K))  # 64KB
     # $((256 * $K)),  # 256KB
     # $((1   * $M)),  # 1MB
     # $((4   * $M)),  # 4MB
@@ -16,7 +16,7 @@ CATEGORIES=(
 )
 
 for CATEGORY in ${CATEGORIES[@]}; do
-    echo "creating $((CATEGORY / SIZE_PER_CATEGORY)) $((CATEGORY))B files"
+    echo "creating $((CATEGORY / SIZE_PER_CATEGORY)) $CATEGORY byte files"
 
     # Create a single file of the desired size.
     mkdir $CATEGORY
