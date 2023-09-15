@@ -1268,7 +1268,7 @@ cache_get_reap_wait(ustate_t *user, request_t **out)
 void
 cache_release(ustate_t *user, request_t *request)
 {
-    if (request == NULL {
+    if (request == NULL) {
         return
     }
 
