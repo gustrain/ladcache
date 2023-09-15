@@ -738,7 +738,7 @@ cache_local_store(lcache_t *lc, char *path, uint8_t *data, size_t size)
 {
     /* Verify we can fit this in the cache. */
     if (lc->used + size > lc->capacity) {
-        LOG(LOG_DEBUG, "Item of %lu bytes too big to fit in local cache.\n", size);
+        LOG(LOG_DEBUG, "%s (%lu byte) is too big to fit in local cache.\n", path, size);
         return -E2BIG;
     }
 
@@ -978,7 +978,7 @@ manager_check_cleanup(cache_t *c, ustate_t *ustate)
     memset(to_clean, 0, sizeof(request_t));
 
     /* Move it to the free queue. */
-    QUEUE_PUSH_SAFE_PRIM(ustate->free, &ustate->free_lock, next, prev, to_clean, 1);
+    QUEUE_PUSH_SAFE(ustate->free, &ustate->free_lock, next, prev, to_clean);
 }
 
 /* Check whether USTATE has a pending request and execute it if it does. Returns
@@ -1199,7 +1199,7 @@ cache_get_submit(ustate_t *user, char *path)
 {
     /* Generate request. */
     request_t *request = NULL;
-    QUEUE_POP_SAFE_PRIM(user->free, &user->free_lock, next, prev, request, 1);
+    QUEUE_POP_SAFE(user->free, &user->free_lock, next, prev, request);
     if (request == NULL) {
         LOG(LOG_WARNING, "Free queue is empty; no request_t structs available.\n");
         return -EAGAIN; /* Try again once completed requests have been freed. */
@@ -1387,13 +1387,6 @@ cache_init(cache_t *c,
 
         /* Initialize the locks. */
         SPIN_MUST_INIT(&ustate->free_lock);
-
-        LOG(LOG_DEBUG, "Locking in init (%p).\n", &ustate->free_lock);
-        pthread_spin_lock(&ustate->free_lock);
-        LOG(LOG_DEBUG, "Locked in init.\n");
-        pthread_spin_unlock(&ustate->free_lock);
-        LOG(LOG_DEBUG, "Unlocked in init.\n");
-
         SPIN_MUST_INIT(&ustate->ready_lock);
         SPIN_MUST_INIT(&ustate->done_lock);
         SPIN_MUST_INIT(&ustate->cleanup_lock);

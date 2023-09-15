@@ -165,14 +165,6 @@ UserState_submit(PyObject *self, PyObject *args, PyObject *kwds)
         return NULL;
     }
 
-    DEBUG_LOG(SCOPE_EXT, LOG_DEBUG, "Self = %p\n", self);
-
-    DEBUG_LOG(SCOPE_EXT, LOG_DEBUG, "Wrapper locking (%p).\n", &((UserState *) self)->ustate->free_lock);
-    pthread_spin_lock(&((UserState *) self)->ustate->free_lock);
-    DEBUG_LOG(SCOPE_EXT, LOG_DEBUG, "Wrapper unlocking.\n");
-    pthread_spin_unlock(&((UserState *) self)->ustate->free_lock);
-    DEBUG_LOG(SCOPE_EXT, LOG_DEBUG, "Wrapper unlocked.\n");
-
     int status = cache_get_submit(((UserState *) self)->ustate, filepath);
     if (status < 0) {
         PyErr_SetString(PyExc_Exception, strerror(-status));
@@ -208,7 +200,7 @@ UserState_reap(PyObject *self, PyObject *args, PyObject *kwds)
     }
 
     /* Allocate and fill the wrapper. */
-    Request *request = (Request *) PythonRequestType.tp_alloc(&PythonRequestType, 0);
+    Request *request = (Request *) Generic_new(&PythonRequestType, NULL, NULL);
     if (request == NULL) {
         PyErr_SetString(PyExc_Exception, "unable to allocate wrapper");
         cache_release(user_state->ustate, out); /* Don't leak requests. */
@@ -340,14 +332,6 @@ Cache_get_user_state(PyObject *self, PyObject *args, PyObject *kwds)
         return NULL;
     }
     user_state->ustate = &c->cache->ustates[index];
-
-    DEBUG_LOG(SCOPE_EXT, LOG_DEBUG, "Self = %p\n", user_state);
-
-    DEBUG_LOG(SCOPE_EXT, LOG_DEBUG, "Wrapper locking (%p).\n", &user_state->ustate->free_lock);
-    pthread_spin_lock(&user_state->ustate->free_lock);
-    DEBUG_LOG(SCOPE_EXT, LOG_DEBUG, "Wrapper unlocking.\n");
-    pthread_spin_unlock(&user_state->ustate->free_lock);
-    DEBUG_LOG(SCOPE_EXT, LOG_DEBUG, "Wrapper unlocked.\n");
 
     return (PyObject *) user_state;
 }
