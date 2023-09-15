@@ -333,6 +333,12 @@ Cache_get_user_state(PyObject *self, PyObject *args, PyObject *kwds)
     }
     user_state->ustate = &c->cache->ustates[index];
 
+    DEBUG_LOG(SCOPE_EXT, LOG_DEBUG, "Wrapper locking.\n");
+    pthread_spin_lock(&user_state->ustate->free_lock);
+    DEBUG_LOG(SCOPE_EXT, LOG_DEBUG, "Wrapper Unlocking.\n");
+    pthread_spin_unlock(&user_state->ustate->free_lock);
+    DEBUG_LOG(SCOPE_EXT, LOG_DEBUG, "Wrapper unlocked.\n");
+
     return (PyObject *) user_state;
 }
 
