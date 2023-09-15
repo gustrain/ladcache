@@ -11,8 +11,6 @@ CATEGORIES=(
     $((4   * $M))   # 4MB
     $((16  * $M))   # 16MB
     $((64  * $M))   # 32MB
-    $((256 * $M))   # 256MB
-    $((1   * $G))   # 1GB
 )
 
 for CATEGORY in ${CATEGORIES[@]}; do
