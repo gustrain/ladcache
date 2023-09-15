@@ -159,7 +159,7 @@ UserState_submit(PyObject *self, PyObject *args, PyObject *kwds)
     char *filepath;
 
     /* Parse arguments. */
-    char *kwlist[] = {"filepath"};
+    char *kwlist[] = {"filepath", NULL};
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "s", kwlist, &filepath)) {
         PyErr_SetString(PyExc_Exception, "missing/invalid argument");
         return NULL;
@@ -185,7 +185,7 @@ UserState_reap(PyObject *self, PyObject *args, PyObject *kwds)
     int wait = 1; /* Predicate arguments fill 4 bytes. */
 
     /* Parse arguments. */
-    char *kwlist[] = {"wait"};
+    char *kwlist[] = {"wait", NULL};
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|p", kwlist, &wait)) {
         PyErr_SetString(PyExc_Exception, "missing/invalid argument");
         return NULL;
@@ -267,7 +267,13 @@ Cache_init(PyObject *self, PyObject *args, PyObject *kwds)
     uint32_t max_unsynced = 1, n_users = 1;
 
     /* Parse arguments. */
-    char *kwlist[] = {"capacity", "queue_depth", "max_unsynced", "n_users"};
+    char *kwlist[] = {
+        "capacity",
+        "queue_depth",
+        "max_unsynced",
+        "n_users",
+        NULL
+    };
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "kI|I|I", kwlist,
                                                 &capacity,
                                                 &queue_depth,
@@ -312,7 +318,7 @@ Cache_get_user_state(PyObject *self, PyObject *args, PyObject *kwds)
     uint32_t index;
 
     /* Parse the arguments. */
-    char *kwlist[] = {"index"};
+    char *kwlist[] = {"index", NULL};
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "I", kwlist, &index)) {
         PyErr_SetString(PyExc_Exception, "missing/invalid argument");
         return NULL;
