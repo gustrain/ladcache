@@ -208,7 +208,7 @@ UserState_reap(PyObject *self, PyObject *args, PyObject *kwds)
     }
 
     /* Allocate and fill the wrapper. */
-    Request *request = (Request *) Py_TYPE(&PythonRequestType)->tp_alloc(&PythonRequestType, 0);
+    Request *request = (Request *) PythonRequestType.tp_alloc(&PythonRequestType, 0);
     if (request == NULL) {
         PyErr_SetString(PyExc_Exception, "unable to allocate wrapper");
         cache_release(user_state->ustate, out); /* Don't leak requests. */
