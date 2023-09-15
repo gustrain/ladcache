@@ -39,9 +39,9 @@ MAX_UNSYNCED = 64
 N_USERS      = 1
 
 # Get all filepaths under ROOT.
-def get_all_filepaths(root: str, extension: str = "*"):
+def get_all_filepaths(root):
     # Taken from https://stackoverflow.com/a/18394205
-    filepaths = [y for x in os.walk(root) for y in glob(os.path.join(x[0], "*.{}".format(extension)))]
+    filepaths = [y for x in os.walk(root) for y in glob(os.path.join(x[0], "*"))]
     total_size = sum([os.path.getsize(filepath) for filepath in filepaths])
 
     return filepaths, total_size
