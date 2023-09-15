@@ -16,7 +16,7 @@ CATEGORIES=(
 )
 
 for CATEGORY in ${CATEGORIES[@]}; do
-    echo "creating $((CATEGORY / SIZE_PER_CATEGORY)) $(CATEGORY)B files"
+    echo "creating $((CATEGORY / SIZE_PER_CATEGORY)) $((CATEGORY))B files"
 
     # Create a single file of the desired size.
     mkdir $CATEGORY
