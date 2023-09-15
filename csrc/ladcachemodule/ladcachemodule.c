@@ -170,7 +170,6 @@ UserState_submit(PyObject *self, PyObject *args, PyObject *kwds)
     int status = cache_get_submit(((UserState *) self)->ustate, filepath);
     if (status < 0) {
         PyErr_SetString(PyExc_Exception, strerror(-status));
-        free(filepath);
         return status == -ENOENT ? Py_None : NULL; /* ENOENT is tolerable. */
     }
 
