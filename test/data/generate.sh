@@ -16,11 +16,10 @@ CATEGORIES=(
 )
 
 for CATEGORY in ${CATEGORIES[@]}; do
-    echo "creating $((CATEGORY / SIZE_PER_CATEGORY)) $CATEGORY byte files"
+    echo "creating $((SIZE_PER_CATEGORY / CATEGORY)) $((CATEGORY / K))KB files"
 
-    # Create a single file of the desired size.
-    mkdir $CATEGORY
-    dd if=/dev/null of=$CATEGORY/$(printf %03d "$n").bin bs=1 count=$CATEGORY
-
-    # Copy it until we have a sufficient quantity. 
+    mkdir $((CATEGORY / K))KB
+    for n in {1..$((SIZE_PER_CATEGORY/CATEGORY))}; do
+        fallocate -l $CATEGORY $n.bin
+    done
 done
