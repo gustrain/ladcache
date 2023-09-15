@@ -82,7 +82,7 @@
  */
 #define QUEUE_POP_SAFE_PRIM(head, lock, next, prev, out, debug)                           \
       do {                                                                    \
-            if (debug) DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Locking %s (%d)\n", #lock, *lock);\
+            if (debug) DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Locking %s (%d) (%p)\n", #lock, *lock, lock);\
             pthread_spin_lock(lock);                                          \
             if (debug) DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Locked %s (%d)\n", #lock, *lock);\
             QUEUE_POP(head, next, prev, out);                                 \
@@ -125,7 +125,7 @@
  */
 #define QUEUE_PUSH_SAFE_PRIM(head, lock, next, prev, elem, debug)                         \
       do {                                                                    \
-            if (debug) DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Locking %s (%d)\n", #lock, *lock);\
+            if (debug) DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Locking %s (%d) (%p)\n", #lock, *lock, lock);\
             pthread_spin_lock(lock);                                          \
             if (debug) DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Locked %s (%d)\n", #lock, *lock);\
             QUEUE_PUSH(head, next, prev, elem);                               \
