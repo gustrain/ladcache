@@ -348,7 +348,7 @@ Cache_get_user_state(PyObject *self, PyObject *args, PyObject *kwds)
     DEBUG_LOG(SCOPE_INT, LOG_DEBUG,
               "Wrapper:\n"
               "\tuser_state->ustate = %p\n"
-              "\tuser_state->ustate->head = %p\n",
+              "\tuser_state->ustate->head = %p\n"
               "\t&c->cache->ustates[%u] = %p\n"
               "\t&c->cache->ustates[%u].head = %p\n",
               user_state->ustate,
