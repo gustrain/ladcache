@@ -22,6 +22,7 @@ module_ladcache = Extension(
     ],
     extra_compile_args = [
         '-g',
+        '-Og',
         '-Wno-unused-function',
     ],
     undef_macros = [
