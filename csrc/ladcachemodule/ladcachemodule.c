@@ -166,9 +166,9 @@ UserState_submit(PyObject *self, PyObject *args, PyObject *kwds)
     }
 
     DEBUG_LOG(SCOPE_EXT, LOG_DEBUG, "Wrapper locking.\n");
-    pthread_spin_lock(((UserState *) self)->ustate->free_lock);
+    pthread_spin_lock(&((UserState *) self)->ustate->free_lock);
     DEBUG_LOG(SCOPE_EXT, LOG_DEBUG, "Wrapper unlocking.\n");
-    pthread_spin_unlock(((UserState *) self)->ustate->free_lock);
+    pthread_spin_unlock(&((UserState *) self)->ustate->free_lock);
     DEBUG_LOG(SCOPE_EXT, LOG_DEBUG, "Wrapper unlocked.\n");
 
     int status = cache_get_submit(((UserState *) self)->ustate, filepath);
