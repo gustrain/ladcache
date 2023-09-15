@@ -1336,8 +1336,6 @@ cache_init(cache_t *c,
            int max_unsynced,
            int n_users)
 {
-    NOT_REACHED();
-
     /* Size arguments must all be >= 1, except for MAX_UNSYNCED, for which a
        zero value indicates infinite size. */
     assert(capacity >= 1);
