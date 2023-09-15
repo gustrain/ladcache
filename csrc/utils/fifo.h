@@ -80,15 +80,20 @@
       - prev: name of "prev" field.
       - out: queue struct pointer, pointed to popped elem.
  */
-#define QUEUE_POP_SAFE(head, lock, next, prev, out)                           \
+#define QUEUE_POP_SAFE_PRIM(head, lock, next, prev, out, debug)                           \
       do {                                                                    \
-            DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Locking %s (%d)\n", #lock, *lock);\
+            if (debug) DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Locking %s (%d)\n", #lock, *lock);\
             pthread_spin_lock(lock);                                          \
-            DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Locked %s (%d)\n", #lock, *lock);\
+            if (debug) DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Locked %s (%d)\n", #lock, *lock);\
             QUEUE_POP(head, next, prev, out);                                 \
-            DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Unlocking %s (%d)\n", #lock, *lock);\
+            if (debug) DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Unlocking %s (%d)\n", #lock, *lock);\
             pthread_spin_unlock(lock);                                        \
-            DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Unlocked %s (%d)\n", #lock, *lock);\
+            if (debug) DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Unlocked %s (%d)\n", #lock, *lock);\
+      } while (0)
+
+#define QUEUE_POP_SAFE(head, lock, next, prev, out)   \
+      do {\
+            QUEUE_POP_SAFE_PRIM(head, lock, next, prev, out, 0);\
       } while (0)
 
 /* General-purpose push method.
@@ -118,13 +123,18 @@
       - elem: pointer to queue struct to insert.
 
  */
-#define QUEUE_PUSH_SAFE(head, lock, next, prev, elem)                         \
+#define QUEUE_PUSH_SAFE_PRIM(head, lock, next, prev, elem, debug)                         \
       do {                                                                    \
-            DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Locking %s (%d)\n", #lock, *lock);\
+            if (debug) DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Locking %s (%d)\n", #lock, *lock);\
             pthread_spin_lock(lock);                                          \
-            DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Locked %s (%d)\n", #lock, *lock);\
+            if (debug) DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Locked %s (%d)\n", #lock, *lock);\
             QUEUE_PUSH(head, next, prev, elem);                               \
-            DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Unlocking %s (%d)\n", #lock, *lock);\
+            if (debug) DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Unlocking %s (%d)\n", #lock, *lock);\
             pthread_spin_unlock(lock);                                        \
-            DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Unlocked %s (%d)\n", #lock, *lock);\
+            if (debug) DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Unlocked %s (%d)\n", #lock, *lock);\
+      } while (0)
+
+#define QUEUE_PUSH_SAFE(head, lock, next, prev, elem)\
+      do {\
+            QUEUE_PUSH_SAFE_PRIM(head, lock, next, prev, elem, 0);\
       } while (0)
