@@ -1,25 +1,25 @@
 /* MIT License
 
-    Copyright (c) 2023 Gus Waldspurger
+   Copyright (c) 2023 Gus Waldspurger
 
-    Permission is hereby granted, free of charge, to any person obtaining a copy
-    of this software and associated documentation files (the "Software"), to deal
-    in the Software without restriction, including without limitation the rights
-    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-    copies of the Software, and to permit persons to whom the Software is
-    furnished to do so, subject to the following conditions:
+   Permission is hereby granted, free of charge, to any person obtaining a copy
+   of this software and associated documentation files (the "Software"), to deal
+   in the Software without restriction, including without limitation the rights
+   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+   copies of the Software, and to permit persons to whom the Software is
+   furnished to do so, subject to the following conditions:
 
-    The above copyright notice and this permission notice shall be included in all
-    copies or substantial portions of the Software.
+   The above copyright notice and this permission notice shall be included in all
+   copies or substantial portions of the Software.
 
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-    SOFTWARE.
-    */
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+   SOFTWARE.
+   */
 
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
@@ -85,7 +85,8 @@ Request_get_data(PyObject *self, PyObject *args, PyObject *kwds)
 {
     Request *r = (Request *) self;
 
-    return PyBytes_FromStringAndSize((char *) r->request->udata, r->request->size);
+    return PyBytes_FromStringAndSize((char *) r->request->udata,
+                                              r->request->size);
 }
 
 /* Release this request. */
@@ -191,7 +192,7 @@ UserState_reap(PyObject *self, PyObject *args, PyObject *kwds)
     Request *request = (Request *) Py_TYPE(&PythonRequestType)->tp_alloc(&PythonRequestType, 0);
     if (request == NULL) {
         PyErr_SetString(PyExc_Exception, "unable to allocate wrapper");
-        cache_release(user_state->ustate, out); /* Don't leak internal structs. */
+        cache_release(user_state->ustate, out); /* Don't leak requests. */
         return NULL;
     }
     request->ustate = user_state->ustate;
@@ -334,11 +335,17 @@ Cache_start(PyObject *self, PyObject *args, PyObject *kwds)
        for that and returning here. */
     int status;
     if ((status = manager_spawn(c->cache)) < 0) {
-        DEBUG_LOG(SCOPE_INT, LOG_CRITICAL, "Failed to spawn manager; %s\n", strerror(-status));
+        DEBUG_LOG(SCOPE_INT,
+                  LOG_CRITICAL,
+                  "Failed to spawn manager; %s\n",
+                  strerror(-status));
         return NULL;
     }
     if ((status = monitor_spawn(c->cache)) < 0) {
-        DEBUG_LOG(SCOPE_INT, LOG_CRITICAL, "Failed to spawn monitor; %s\n", strerror(-status));
+        DEBUG_LOG(SCOPE_INT,
+                  LOG_CRITICAL,
+                  "Failed to spawn monitor; %s\n",
+                  strerror(-status));
         kill(c->cache->manager_thread, SIGKILL);
         return NULL;
     }
