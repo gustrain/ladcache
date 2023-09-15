@@ -82,8 +82,8 @@ def benchmark_filepaths(ctx: ladcache.UserState, queue_depth: int, paths: str):
 def main():
     np.random.seed(42)
 
-    directories = list(sys.argv)
-    if len(directories) < 2:
+    directories = list(sys.argv)[1:]
+    if not directories:
         print("Please provide at least one directory to load from.")
         return
     
@@ -103,9 +103,9 @@ def main():
     ctx = cache.get_user_state(0)
     print("Benchmarking {} directories ({} bytes)".format(len(path_groups), total_size))
     for paths in path_groups:
-        print("Directory {} ({} files)... ".format(directory, len(paths)), end="")
+        print("Directory \"{}\" ({} files)... ".format(directory, len(paths)), end="")
         duration, size = benchmark_filepaths(cache, QUEUE_DEPTH, paths)
-        print("{} bytes, {} seconds ({} MB/s)".format(size, duration, (size / M) / duration))
+        print("{} bytes, {:.3} seconds ({:.3} MB/s)".format(size, duration, (size / M) / duration))
     
     # Cleanup the cache.
     del cache
