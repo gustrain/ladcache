@@ -281,7 +281,7 @@ Cache_init(PyObject *self, PyObject *args, PyObject *kwds)
         "n_users",
         NULL
     };
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "kI|I|I", kwlist,
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "kI|II", kwlist,
                                                 &capacity,
                                                 &queue_depth,
                                                 &max_unsynced,
