@@ -74,11 +74,13 @@ Generic_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
     DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "%s start.\n", __func__);
 
-   PyObject *self;
-   if ((self = type->tp_alloc(type, 0)) == NULL) {
-      PyErr_NoMemory();
-      return NULL;
-   }
+    PyObject *self;
+    if ((self = type->tp_alloc(type, 0)) == NULL) {
+        PyErr_NoMemory();
+        return NULL;
+    }
+
+   DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "%s end.\n", __func__);
 
    return (PyObject *) self;
 }
@@ -342,6 +344,17 @@ Cache_get_user_state(PyObject *self, PyObject *args, PyObject *kwds)
         return NULL;
     }
     user_state->ustate = &c->cache->ustates[index];
+
+    DEBUG_LOG(SCOPE_INT, LOG_DEBUG,
+              "Wrapper:\n"
+              "\tuser_state->ustate = %p\n"
+              "\tuser_state->ustate->head = %p\n",
+              "\t&c->cache->ustates[%u] = %p\n"
+              "\t&c->cache->ustates[%u].head = %p\n",
+              user_state->ustate,
+              user_state->ustate->head,
+              index, &c->cache->ustates[index],
+              index, &c->cache->ustates[index].head);
 
     DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "%s end.\n", __func__);
     return (PyObject *) user_state;
