@@ -334,7 +334,7 @@ Cache_get_user_state(PyObject *self, PyObject *args, PyObject *kwds)
     ARG_CHECK(index < c->cache->n_users, "invalid user index", NULL);
 
     /* Allocate and fill the wrapper. */
-    UserState *user_state = (UserState *) PythonUserStateType.tp_alloc(&PythonUserStateType, 0);
+    UserState *user_state = (UserState *) Generic_new(&PythonUserStateType, NULL, NULL);
     if (user_state == NULL) {
         PyErr_SetString(PyExc_Exception, "unable to allocate wrapper");
         return NULL;
