@@ -104,7 +104,7 @@ def main():
     print("Benchmarking {} directories ({} bytes)".format(len(path_groups), total_size))
     for paths in path_groups:
         print("Directory {} ({} files)... ".format(directory, len(paths)), end="")
-        duration, size = benchmark_filepaths(cache, paths)
+        duration, size = benchmark_filepaths(cache, QUEUE_DEPTH, paths)
         print("{} bytes, {} seconds ({} MB/s)".format(size, duration, (size / M) / duration))
     
     # Cleanup the cache.
