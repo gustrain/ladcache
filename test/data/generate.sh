@@ -21,6 +21,6 @@ for CATEGORY in ${CATEGORIES[@]}; do
     DIR_NAME=$((CATEGORY / K))KB
     mkdir $DIR_NAME
     for N in $(seq 1 $((SIZE_PER_CATEGORY/CATEGORY))); do
-        fallocate -l $CATEGORY $DIR_NAME/$N.bin
+        fallocate -l $CATEGORY $DIR_NAME/$(printf %08d "$N").bin
     done
 done
