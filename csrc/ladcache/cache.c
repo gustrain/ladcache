@@ -1387,6 +1387,12 @@ cache_init(cache_t *c,
 
         /* Initialize the locks. */
         SPIN_MUST_INIT(&ustate->free_lock);
+
+        LOG(LOG_DEBUG, "Locking in init...\n");
+        pthread_spin_lock(&ustate->free_lock);
+        pthread_spin_unlock(&ustate->free_lock);
+        LOG(LOG_DEBUG, "Unlocking in init.\n");
+
         SPIN_MUST_INIT(&ustate->ready_lock);
         SPIN_MUST_INIT(&ustate->done_lock);
         SPIN_MUST_INIT(&ustate->cleanup_lock);
