@@ -265,7 +265,6 @@ Cache_dealloc(PyObject *self)
 static int
 Cache_init(PyObject *self, PyObject *args, PyObject *kwds)
 {
-    fprintf(stderr, "test test test test\n");
     DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "%s start.\n", __func__);
     Cache *c = (Cache *) self;
     size_t capacity;
