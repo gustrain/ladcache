@@ -90,12 +90,12 @@ typedef struct file_request {
 
 /* File data location for the local cache. Manager/monitor context. */
 typedef struct local_location {
-    char    path[MAX_PATH_LEN + 1];             /* Index in hash table, +1 for \0. */
-    char    shm_path[MAX_SHM_PATH_LEN + 1];     /* Path to the shm object, +1 for \0. */
+    char    path[MAX_PATH_LEN + 1];             /* Hash table key, +1 for \0. */
+    char    shm_path[MAX_SHM_PATH_LEN + 1];     /* Shm obj. path, +1 for \0. */
     int     shm_fd;                             /* FD for shm object. */
-    size_t  shm_size;                           /* Size of shm object in bytes. */
+    size_t  shm_size;                           /* Shm object size in bytes. */
     size_t  size;                               /* Size of file in bytes. */
-    void   *data;                               /* Pointer to shm obj's memory. */
+    void   *data;                               /* Shm object's memory. */
 
     /* Update (new) list. */
     struct local_location *next;    /* Next entry in the new list. */

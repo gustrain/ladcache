@@ -72,6 +72,8 @@ static PyTypeObject PythonRequestType;
 static PyObject *
 Generic_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+    DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "%s start.\n", __func__);
+
    PyObject *self;
    if ((self = type->tp_alloc(type, 0)) == NULL) {
       PyErr_NoMemory();
@@ -252,15 +254,20 @@ static PyTypeObject PythonUserStateType = {
 static void
 Cache_dealloc(PyObject *self)
 {
+    DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "%s start.\n", __func__);
+
     /* Destroy the cache and free the wrapper. */
     cache_destroy(((Cache *) self)->cache);
     Py_TYPE(&PythonCacheType)->tp_free(self);
+
+    DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "%s end.\n", __func__);
 }
 
 /* Cache initializer. */
 static int
 Cache_init(PyObject *self, PyObject *args, PyObject *kwds)
 {
+    DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "%s start.\n", __func__);
     Cache *c = (Cache *) self;
     size_t capacity;
     uint32_t queue_depth;
@@ -307,6 +314,7 @@ Cache_init(PyObject *self, PyObject *args, PyObject *kwds)
         return -1;
     }
 
+    DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "%s end.\n", __func__);
     return 0;
 }
 
@@ -314,6 +322,8 @@ Cache_init(PyObject *self, PyObject *args, PyObject *kwds)
 PyObject *
 Cache_get_user_state(PyObject *self, PyObject *args, PyObject *kwds)
 {
+    DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "%s start.\n", __func__);
+
     Cache *c = (Cache *) self;
     uint32_t index;
 
@@ -335,6 +345,7 @@ Cache_get_user_state(PyObject *self, PyObject *args, PyObject *kwds)
     }
     user_state->ustate = &c->cache->ustates[index];
 
+    DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "%s end.\n", __func__);
     return (PyObject *) user_state;
 }
 
@@ -342,6 +353,8 @@ Cache_get_user_state(PyObject *self, PyObject *args, PyObject *kwds)
 PyObject *
 Cache_start(PyObject *self, PyObject *args, PyObject *kwds)
 {
+    DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "%s start.\n", __func__);
+
     Cache *c = (Cache *) self;
 
     /* Parent returns immediately. */
