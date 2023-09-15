@@ -1289,6 +1289,7 @@ cache_release(ustate_t *user, request_t *request)
 cache_t *
 cache_new(void)
 {
+    DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "test test test\n");
     return mmap_alloc(sizeof(cache_t));
 }
 

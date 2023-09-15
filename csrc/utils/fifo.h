@@ -82,13 +82,13 @@
  */
 #define QUEUE_POP_SAFE(head, lock, next, prev, out)                           \
       do {                                                                    \
-            DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Locking %s (%d)\n", #lock, lock);\
+            DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Locking %s (%d)\n", #lock, *lock);\
             pthread_spin_lock(lock);                                          \
-            DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Locked %s (%d)\n", #lock, lock);\
+            DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Locked %s (%d)\n", #lock, *lock);\
             QUEUE_POP(head, next, prev, out);                                 \
-            DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Unlocking %s (%d)\n", #lock, lock);\
+            DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Unlocking %s (%d)\n", #lock, *lock);\
             pthread_spin_unlock(lock);                                        \
-            DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Unlocked %s (%d)\n", #lock, lock);\
+            DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Unlocked %s (%d)\n", #lock, *lock);\
       } while (0)
 
 /* General-purpose push method.
@@ -120,11 +120,11 @@
  */
 #define QUEUE_PUSH_SAFE(head, lock, next, prev, elem)                         \
       do {                                                                    \
-            DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Locking %s (%d)\n", #lock, lock);\
+            DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Locking %s (%d)\n", #lock, *lock);\
             pthread_spin_lock(lock);                                          \
-            DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Locked %s (%d)\n", #lock, lock);\
+            DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Locked %s (%d)\n", #lock, *lock);\
             QUEUE_PUSH(head, next, prev, elem);                               \
-            DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Unlocking %s (%d)\n", #lock, lock);\
+            DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Unlocking %s (%d)\n", #lock, *lock);\
             pthread_spin_unlock(lock);                                        \
-            DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Unlocked %s (%d)\n", #lock, lock);\
+            DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Unlocked %s (%d)\n", #lock, *lock);\
       } while (0)
