@@ -16,12 +16,13 @@ CATEGORIES=(
 )
 
 for CATEGORY in ${CATEGORIES[@]}; do
-    echo "creating $((SIZE_PER_CATEGORY / CATEGORY)) $((CATEGORY / K))KB files"
+    N_FILES=$((SIZE_PER_CATEGORY / CATEGORY))
+    DIR_NAME=$((CATEGORY / K))KB
 
-    N_FILES=$((CATEGORY / K))
-    DIR_NAME=$($N_FILES)KB
+    echo "creating $N_FILES $DIR_NAME files"
+
     mkdir $DIR_NAME
-    for N in $(seq 1 $((SIZE_PER_CATEGORY/CATEGORY))); do
+    for N in $(seq 1 $N_FILES); do
         fallocate -l $CATEGORY $DIR_NAME/$(printf %08d "$N")
 
         # Progress reports
