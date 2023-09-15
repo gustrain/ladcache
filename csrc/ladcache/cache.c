@@ -1269,7 +1269,7 @@ void
 cache_release(ustate_t *user, request_t *request)
 {
     if (request == NULL) {
-        return
+        return;
     }
 
     if (request->status == 0) {
