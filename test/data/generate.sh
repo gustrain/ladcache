@@ -18,8 +18,9 @@ CATEGORIES=(
 for CATEGORY in ${CATEGORIES[@]}; do
     echo "creating $((SIZE_PER_CATEGORY / CATEGORY)) $((CATEGORY / K))KB files"
 
-    mkdir $((CATEGORY / K))KB
-    for n in {1..$((SIZE_PER_CATEGORY/CATEGORY))}; do
-        fallocate -l $CATEGORY $n.bin
+    DIR_NAME=$((CATEGORY / K))KB
+    mkdir $DIR_NAME
+    for N in $(seq 1 $((SIZE_PER_CATEGORY/CATEGORY))); do
+        fallocate -l $CATEGORY $DIR_NAME/$N.bin
     done
 done
