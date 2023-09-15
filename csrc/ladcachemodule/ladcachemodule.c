@@ -148,9 +148,9 @@ static PyTypeObject PythonRequestType = {
 };
 
 
-/* ----------------------- */
-/*    `UserState` METHODS    */
-/* ----------------------- */
+/* ------------------------ */
+/*    `UserState` METHODS   */
+/* ------------------------ */
 
 /* Submit a request for a file to be loaded. */
 PyObject *
@@ -165,7 +165,7 @@ UserState_submit(PyObject *self, PyObject *args, PyObject *kwds)
         return NULL;
     }
 
-    DEBUG_LOG(SCOPE_EXT, LOG_DEBUG, "Wrapper locking.\n");
+    DEBUG_LOG(SCOPE_EXT, LOG_DEBUG, "Wrapper locking (%p).\n", &((UserState *) self)->ustate->free_lock);
     pthread_spin_lock(&((UserState *) self)->ustate->free_lock);
     DEBUG_LOG(SCOPE_EXT, LOG_DEBUG, "Wrapper unlocking.\n");
     pthread_spin_unlock(&((UserState *) self)->ustate->free_lock);
@@ -339,7 +339,7 @@ Cache_get_user_state(PyObject *self, PyObject *args, PyObject *kwds)
     }
     user_state->ustate = &c->cache->ustates[index];
 
-    DEBUG_LOG(SCOPE_EXT, LOG_DEBUG, "Wrapper locking.\n");
+    DEBUG_LOG(SCOPE_EXT, LOG_DEBUG, "Wrapper locking (%p).\n", &user_state->ustate->free_lock);
     pthread_spin_lock(&user_state->ustate->free_lock);
     DEBUG_LOG(SCOPE_EXT, LOG_DEBUG, "Wrapper unlocking.\n");
     pthread_spin_unlock(&user_state->ustate->free_lock);
