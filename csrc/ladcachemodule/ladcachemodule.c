@@ -116,7 +116,7 @@ Request_dealloc(PyObject *self)
     }
 
     /* Release this object. */
-    Py_TYPE(&PythonRequestType)->tp_free(self);
+    Py_TYPE(self)->tp_free(self);
 }
 
 /* Request methods array. */
@@ -258,7 +258,7 @@ Cache_dealloc(PyObject *self)
 
     /* Destroy the cache and free the wrapper. */
     cache_destroy(((Cache *) self)->cache);
-    Py_TYPE(&PythonCacheType)->tp_free(self);
+    Py_TYPE(self)->tp_free(self);
 
     DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "%s end.\n", __func__);
 }
