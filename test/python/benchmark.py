@@ -64,14 +64,14 @@ def benchmark_filepaths(ctx: ladcache.UserState, queue_depth: int, paths: str):
             if (request == None):
                 break
 
-            total_size += request.get_size()
+            total_size += len(request.get_data())
             in_flight -= 1
             del request
     
     # Get the stragglers
     while in_flight > 0:
         request = ctx.reap(wait=True)
-        total_size += request.get_size()
+        total_size += len(request.get_data())
         in_flight -= 1
         del request
     duration = time.time() - start
