@@ -191,8 +191,8 @@ UserState_reap(PyObject *self, PyObject *args, PyObject *kwds)
 
     request_t *out;
     int status = wait ? cache_get_reap_wait(user_state->ustate, &out) :
-                              cache_get_reap(user_state->ustate, &out);
-    if (status == EAGAIN) {
+                        cache_get_reap(user_state->ustate, &out);
+    if (status == -EAGAIN) {
         return Py_None;
     } else if (status < 0) {
         PyErr_Format(PyExc_Exception, strerror(-status));
