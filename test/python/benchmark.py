@@ -23,6 +23,7 @@
 import ladcache
 
 from glob import glob
+from typing import List
 import numpy as np
 import time
 import sys
@@ -47,7 +48,7 @@ def get_all_filepaths(root):
     return filepaths, total_size
 
 # Load a directory, returning (seconds to load, # bytes loaded).
-def benchmark_filepaths(ctx: ladcache.UserState, queue_depth: int, paths: str):
+def benchmark_filepaths(ctx: ladcache.UserState, queue_depth: int, paths: List[str]):
     total_size = 0
     in_flight = 0
 
@@ -78,35 +79,37 @@ def benchmark_filepaths(ctx: ladcache.UserState, queue_depth: int, paths: str):
 
     return duration, total_size
 
+def run_benchmark(ctx: ladcache.UserState, queue_depth: int, directory: str):
+    try:
+        paths, size = get_all_filepaths(directory)
+    except FileNotFoundError:
+        print("Directory \"{}\" does not exist.".format(directory))
+        return
+    
+    # Run the benchmark
+    print("Benchmarking \"{}\" ({} files, {} MB)... ".format(directory, len(paths), size / M), end="")
+    duration, bytes_loaded = benchmark_filepaths(ctx, QUEUE_DEPTH, paths)
+    if (bytes_loaded != size):
+        print("FAIL; incorrect number of bytes loaded: should be {} B, got {} B.".format(size, bytes_loaded))
+    else:
+        print("{} MB in {:.3} seconds ({:.3} MB/s)".format(size / M, duration, (size / M) / duration))
+
 
 def main():
     np.random.seed(42)
 
-    directories = list(sys.argv)[1:]
-    if not directories:
-        print("Please provide at least one directory to load from.")
-        return
-    
-    total_size = 0
-    path_groups = []
-    for directory in directories:
-        paths, size = get_all_filepaths(directory)
-        total_size += size
-        path_groups.append(paths)
-
-
     # Create a very large cache to allow everything to be loaded.
     cache = ladcache.Cache(CAPACITY, QUEUE_DEPTH, MAX_UNSYNCED, N_USERS)
     cache.spawn_threads()
-
-    # Benchmark each directory.
     ctx = cache.get_user_state(0)
-    print("Benchmarking {} directories ({} bytes)".format(len(path_groups), total_size))
-    for paths in path_groups:
-        print("Directory \"{}\" ({} files)... ".format(directory, len(paths)), end="")
-        duration, size = benchmark_filepaths(ctx, QUEUE_DEPTH, paths)
-        print("{} bytes, {:.3} seconds ({:.3} MB/s)".format(size, duration, (size / M) / duration))
-    
+
+    while True:
+        directory = input("directory to load: ")
+        if directory in {"q", "quit"}:
+            break
+
+        run_benchmark(ctx, QUEUE_DEPTH, directory)
+
     # Cleanup the cache.
     del cache
 
