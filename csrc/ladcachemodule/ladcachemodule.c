@@ -108,6 +108,8 @@ Request_dealloc(PyObject *self)
 {
     Request *r = (Request *) self;
 
+    DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Freeing request at %p (%s).\n", self, r->request->path);
+
     /* Release the wrapped request. */
     if (r->request != NULL) {
         cache_release(r->ustate, r->request);

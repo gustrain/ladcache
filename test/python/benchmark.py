@@ -94,7 +94,7 @@ def run_benchmark(ctx: ladcache.UserState, queue_depth: int, directory: str):
     if (bytes_loaded != size):
         print("FAIL; incorrect number of bytes loaded: should be {} B, got {} B.".format(size, bytes_loaded))
     else:
-        print("{} MB in {:.3} seconds ({:.3} MB/s)".format(size / M, duration, (size / M) / duration))
+        print("{:.4} MB in {:.4} seconds ({:.4} MB/s)".format(size / M, duration, (size / M) / duration))
 
 
 def main():
