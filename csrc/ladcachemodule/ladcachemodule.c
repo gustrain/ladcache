@@ -210,6 +210,8 @@ UserState_reap(PyObject *self, PyObject *args, PyObject *kwds)
     request->ustate = user_state->ustate;
     request->request = out;
 
+    DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Successfully reaped \"%s\".", request->request->path);
+
     return (PyObject *) request;
 }
 
