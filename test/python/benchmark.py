@@ -67,8 +67,9 @@ def benchmark_filepaths(ctx: ladcache.UserState, queue_depth: int, paths: List[s
                 break
 
             total_size += len(request.get_data())
-            print("in_flight: {} -> {}".format(in_flight, in_flight - 1))
+            print("in_flight: {} -> {} (cleared \"{}\")".format(in_flight, in_flight - 1, request.get_filepath()))
             in_flight -= 1
+
             del request
     
     # Get the stragglers
