@@ -21,7 +21,7 @@ for CATEGORY in ${CATEGORIES[@]}; do
 
     mkdir $DIR_NAME
     for N in $(seq 1 $N_FILES); do
-        fallocate -l $CATEGORY $DIR_NAME/$(printf %08d "$N")
+        yes Lorem ipsum dolor sit amet | head -c $CATEGORY > $DIR_NAME/$(printf %08d "$N")
 
         # Progress reports
         if [ $(($N % $((N_FILES / 16)))) -eq 0 ]; then
