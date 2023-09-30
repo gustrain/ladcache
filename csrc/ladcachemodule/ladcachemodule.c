@@ -124,7 +124,9 @@ Request_dealloc(PyObject *self)
 {
     Request *r = (Request *) self;
 
-    DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Freeing request at %p (%s).\n", self, r->request->path);
+    PyObject *repr = PyObject_Repr(self);
+    DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Freeing %s at %p (%s) .\n", PyUnicode_AsUTF8(repr), self, r->request->path);
+    Py_DECREF(repr);
 
     /* Release the wrapped request. */
     if (r->request != NULL) {
@@ -229,7 +231,7 @@ UserState_reap(PyObject *self, PyObject *args, PyObject *kwds)
     request->ustate = user_state->ustate;
     request->request = out;
 
-    DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Successfully reaped \"%s\" (request @ %p).", request->request->path, request);
+    DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Successfully reaped \"%s\" (request @ %p).\n", request->request->path, request);
 
     return (PyObject *) request;
 }
