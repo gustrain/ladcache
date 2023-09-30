@@ -57,7 +57,7 @@ def benchmark_filepaths(ctx: ladcache.UserState, queue_depth: int, paths: List[s
         while (paths and in_flight < queue_depth):
             path = paths.pop()
             ctx.submit(path)
-            print("in_flight: {} -> {}".format(in_flight, in_flight + 1))
+            # print("in_flight: {} -> {}".format(in_flight, in_flight + 1))
             in_flight += 1
         
         # Perhaps sub-optimal? Should only clear out minimal space?
@@ -67,7 +67,7 @@ def benchmark_filepaths(ctx: ladcache.UserState, queue_depth: int, paths: List[s
                 break
 
             total_size += len(request.get_data())
-            print("in_flight: {} -> {} (cleared \"{}\")".format(in_flight, in_flight - 1, request.get_filepath()))
+            # print("in_flight: {} -> {} (cleared \"{}\")".format(in_flight, in_flight - 1, request.get_filepath()))
             in_flight -= 1
 
             del request
@@ -95,7 +95,7 @@ def run_benchmark(ctx: ladcache.UserState, queue_depth: int, directory: str):
     if (bytes_loaded != size):
         print("FAIL; incorrect number of bytes loaded: should be {} B, got {} B.".format(size, bytes_loaded))
     else:
-        print("{:.4} MB in {:.4} seconds ({:.4} MB/s)".format(size / M, duration, (size / M) / duration))
+        print("{:.4f} MB in {:.4f} seconds ({:.4f} MB/s)".format(size / M, duration, (size / M) / duration))
 
 
 def main():
