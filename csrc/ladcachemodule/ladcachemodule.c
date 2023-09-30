@@ -125,7 +125,7 @@ Request_dealloc(PyObject *self)
     Request *r = (Request *) self;
 
     PyObject *repr = PyObject_Repr(self);
-    DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Freeing %s at %p (%s) .\n", PyUnicode_AsUTF8(repr), self, r->request->path);
+    DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Freeing %s at %p (%s).\n", PyUnicode_AsUTF8(repr), self, r->request->path);
     Py_DECREF(repr);
 
     // /* Release the wrapped request. */
@@ -192,6 +192,7 @@ UserState_submit(PyObject *self, PyObject *args, PyObject *kwds)
         return status == -ENOENT ? Py_None : NULL; /* ENOENT is tolerable. */
     }
 
+    Py_INCREF(Py_None);
     return Py_None;
 }
 
@@ -214,6 +215,7 @@ UserState_reap(PyObject *self, PyObject *args, PyObject *kwds)
     int status = wait ? cache_get_reap_wait(user_state->ustate, &out) :
                         cache_get_reap(user_state->ustate, &out);
     if (status == -EAGAIN) {
+        Py_INCREF(Py_None);
         return Py_None;
     } else if (status < 0) {
         DEBUG_LOG(SCOPE_INT, LOG_ERROR, "Failed to reap \"%s\"; %s\n", out->path, strerror(-status));
@@ -370,6 +372,7 @@ Cache_start(PyObject *self, PyObject *args, PyObject *kwds)
 
     /* Parent returns immediately. */
     if (fork() != 0) {
+        Py_INCREF(Py_None);
         return Py_None;
     }
 
