@@ -81,6 +81,22 @@ Generic_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
    return (PyObject *) self;
 }
 
+/* Generic object deallocator. */
+static void
+Generic_dealloc(PyObject *self)
+{
+    Py_TYPE(self)->tp_free(self);
+}
+
+/* Generic object no-op init. */
+static int
+Generic_init_noop(PyObject *self, PyObject *args, PyObject *kwds)
+{
+    /* No-op. */
+    return 0;
+}
+
+
 /* --------------------  */
 /*    `Request` METHODS    */
 /* --------------------- */
@@ -145,6 +161,7 @@ static PyTypeObject PythonRequestType = {
      .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
 
      /* Methods. */
+     .tp_init = Generic_init_noop,
      .tp_dealloc = Request_dealloc,
      .tp_methods = Request_methods,
 };
@@ -212,7 +229,7 @@ UserState_reap(PyObject *self, PyObject *args, PyObject *kwds)
     request->ustate = user_state->ustate;
     request->request = out;
 
-    DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Successfully reaped \"%s\".", request->request->path);
+    DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Successfully reaped \"%s\" (request @ %p).", request->request->path, request);
 
     return (PyObject *) request;
 }
@@ -243,6 +260,8 @@ static PyTypeObject PythonUserStateType = {
      .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
 
      /* Methods. */
+     .tp_init = Generic_init_noop,
+     .tp_dealloc = Generic_dealloc,
      .tp_methods = UserState_methods,
 };
 
