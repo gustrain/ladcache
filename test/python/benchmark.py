@@ -52,6 +52,8 @@ def benchmark_filepaths(ctx: ladcache.UserState, queue_depth: int, paths: List[s
     total_size = 0
     in_flight = 0
 
+    refs = []
+
     start = time.time()
     while paths or in_flight > 0:
         while (paths and in_flight < queue_depth):
@@ -74,7 +76,8 @@ def benchmark_filepaths(ctx: ladcache.UserState, queue_depth: int, paths: List[s
             # print("in_flight: {} -> {} (cleared \"{}\")".format(in_flight, in_flight - 1, request.get_filepath().decode()))
             in_flight -= 1
 
-            del request
+            refs.append(request)
+            # del request
     
     # Get the stragglers
     while in_flight > 0:

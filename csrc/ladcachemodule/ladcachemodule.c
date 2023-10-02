@@ -211,6 +211,8 @@ UserState_reap(PyObject *self, PyObject *args, PyObject *kwds)
         return NULL;
     }
 
+    DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Attempting to reap something.\n");
+
     request_t *out;
     int status = wait ? cache_get_reap_wait(user_state->ustate, &out) :
                         cache_get_reap(user_state->ustate, &out);
@@ -230,7 +232,6 @@ UserState_reap(PyObject *self, PyObject *args, PyObject *kwds)
         cache_release(user_state->ustate, out); /* Don't leak requests. */
         return NULL;
     }
-
     request->ustate = user_state->ustate;
     request->request = out;
 
