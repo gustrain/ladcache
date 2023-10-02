@@ -898,6 +898,7 @@ cache_remote_load(void *args)
     LOG(LOG_DEBUG, "Received \"%s\" (%u bytes) from %s.\n", request->path, response->header.length, inet_ntoa((struct in_addr) {.s_addr = loc->ip}));
 
    done:
+    assert(request->path[0] != '\0');
     QUEUE_PUSH_SAFE(user->done, &user->done_lock, next, prev, request);
     free(response);
     return NULL;
@@ -1002,6 +1003,7 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
         if (pending->status < 0) {
             LOG(LOG_ERROR, "cache_local_load failed; %s\n", strerror(-pending->status));
         }
+        assert(pending->path[0] != '\0');
         QUEUE_PUSH_SAFE(ustate->done, &ustate->done_lock, next, prev, pending);
 
         return 0;
@@ -1033,6 +1035,7 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
     int status = manager_submit_io(ustate, pending);
     if (status < 0) {
         pending->status = status;
+        assert(pending->path[0] != '\0');
         QUEUE_PUSH_SAFE(ustate->done, &ustate->done_lock, next, prev, pending);
         LOG(LOG_ERROR, "manager_submit_io failed; %s\n", strerror(-status));
         return status;
@@ -1087,6 +1090,7 @@ manager_check_done(cache_t *c, ustate_t *ustate)
         }
 
        skip_cache:
+        assert(request->path[0] != '\0');
         QUEUE_PUSH_SAFE(ustate->done, &ustate->done_lock, next, prev, request);
     }
 }
