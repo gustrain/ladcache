@@ -128,10 +128,10 @@ Request_dealloc(PyObject *self)
     DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Freeing %s at %p (%s).\n", PyUnicode_AsUTF8(repr), self, r->request->path);
     Py_DECREF(repr);
 
-    // /* Release the wrapped request. */
-    // if (r->request != NULL) {
-    //     cache_release(r->ustate, r->request);
-    // }
+    /* Release the wrapped request. */
+    if (r->request != NULL) {
+        cache_release(r->ustate, r->request);
+    }
 
     /* Release this object. */
     Py_TYPE(self)->tp_free(self);
