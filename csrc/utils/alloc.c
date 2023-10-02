@@ -74,7 +74,7 @@ shm_alloc(char *name, void **ptr, size_t size)
    /* Create the shm object. */
    int fd = shm_open(name, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
    if (fd < 0) {
-      DEBUG_LOG(SCOPE_INT, LOG_ERROR, "shm_open failed; %s\n", strerror(-fd));
+      DEBUG_LOG(SCOPE_INT, LOG_ERROR, "shm_open failed; %s; %s\n", name, strerror(-fd));
       return fd;
    }
 
@@ -82,7 +82,7 @@ shm_alloc(char *name, void **ptr, size_t size)
    if (ftruncate(fd, size) < 0) {
       shm_unlink(name);
       close(fd);
-      DEBUG_LOG(SCOPE_INT, LOG_ERROR, "ftruncate failed; %s\n", strerror(errno));
+      DEBUG_LOG(SCOPE_INT, LOG_ERROR, "ftruncate failed; %s; %s\n", name, strerror(errno));
       return -errno;
    }
 
@@ -91,7 +91,7 @@ shm_alloc(char *name, void **ptr, size_t size)
    if (*ptr == NULL) {
       shm_unlink(name);
       close(fd);
-      DEBUG_LOG(SCOPE_INT, LOG_ERROR, "mmap failed; %s\n", strerror(ENOMEM));
+      DEBUG_LOG(SCOPE_INT, LOG_ERROR, "mmap failed; %s; %s\n", name, strerror(ENOMEM));
       return -ENOMEM;
    }
 
@@ -99,7 +99,7 @@ shm_alloc(char *name, void **ptr, size_t size)
    if (mlock(*ptr, size) < 0) {
       shm_unlink(name);
       close(fd);
-      DEBUG_LOG(SCOPE_INT, LOG_ERROR, "mlock failed; %s\n", strerror(errno));
+      DEBUG_LOG(SCOPE_INT, LOG_ERROR, "mlock failed; %s; %s\n", name, strerror(errno));
       return -errno;
    }
 
