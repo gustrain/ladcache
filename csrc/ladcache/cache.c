@@ -1202,7 +1202,7 @@ cache_get_submit(ustate_t *user, char *path)
     request_t *request = NULL;
     QUEUE_POP_SAFE(user->free, &user->free_lock, next, prev, request);
     if (request == NULL) {
-        LOG(LOG_WARNING, "Free queue is empty; no request_t structs available.\n");
+        LOG(LOG_DEBUG, "Free queue is empty; no request_t structs available.\n");
         return -EAGAIN; /* Try again once completed requests have been freed. */
     }
     memset(request, 0, sizeof(request_t));
