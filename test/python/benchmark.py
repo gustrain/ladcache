@@ -56,12 +56,9 @@ def benchmark_filepaths(ctx: ladcache.UserState, queue_depth: int, paths: List[s
     while paths or in_flight > 0:
         while (paths and in_flight < queue_depth):
             path = paths.pop()
-            if not path:
-                print("Found bad path: \"{}\"".format(path))
-                exit()
             try:
                 ctx.submit(path)
-                print("in_flight: {} -> {} (added \"{}\")".format(in_flight, in_flight + 1, path))
+                # print("in_flight: {} -> {} (added \"{}\")".format(in_flight, in_flight + 1, path))
                 in_flight += 1
             except:
                 # We're waiting on the process to cleanup released entries, so we'll retry.
@@ -74,7 +71,7 @@ def benchmark_filepaths(ctx: ladcache.UserState, queue_depth: int, paths: List[s
                 break
 
             total_size += len(request.get_data())
-            print("in_flight: {} -> {} (cleared \"{}\")".format(in_flight, in_flight - 1, request.get_filepath().decode()))
+            # print("in_flight: {} -> {} (cleared \"{}\")".format(in_flight, in_flight - 1, request.get_filepath().decode()))
             in_flight -= 1
 
             del request
