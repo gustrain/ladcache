@@ -107,7 +107,7 @@ def main():
 
     # Create a very large cache to allow everything to be loaded.
     cache = ladcache.Cache(CAPACITY, QUEUE_DEPTH, MAX_UNSYNCED, N_USERS)
-    cache.spawn_threads()
+    cache.spawn_process()
     ctx = cache.get_user_state(0)
 
     while True:

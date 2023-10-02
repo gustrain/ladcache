@@ -366,7 +366,7 @@ Cache_get_user_state(PyObject *self, PyObject *args, PyObject *kwds)
 
 /* Spawn the manager, monitor, and registrar threads under a new process. */
 PyObject *
-Cache_start(PyObject *self, PyObject *args, PyObject *kwds)
+Cache_spawn_process(PyObject *self, PyObject *args, PyObject *kwds)
 {
     Cache *c = (Cache *) self;
 
@@ -416,8 +416,8 @@ static PyMethodDef Cache_methods[] = {
         "Get the context for the specified user"
     },
     {
-        "spawn_threads",
-        (PyCFunction) Cache_start,
+        "spawn_process",
+        (PyCFunction) Cache_spawn_process,
         METH_NOARGS,
         "Spawn the manager, monitor, and registrar threads under a new process."
     }
