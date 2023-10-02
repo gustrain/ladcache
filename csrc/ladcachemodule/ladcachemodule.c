@@ -230,6 +230,9 @@ UserState_reap(PyObject *self, PyObject *args, PyObject *kwds)
         cache_release(user_state->ustate, out); /* Don't leak requests. */
         return NULL;
     }
+
+    DEBUG_LOG(SCOPE_INT, LOG_INFO, "Allocated PythonRequestType has refcount = %d.\n", Py_REFCNT(request));
+
     request->ustate = user_state->ustate;
     request->request = out;
 
