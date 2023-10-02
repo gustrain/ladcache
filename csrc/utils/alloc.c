@@ -72,8 +72,9 @@ int
 shm_alloc(char *name, void **ptr, size_t size)
 {
    /* This name shouldn't already be in use. */
-   DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Opening shm object \"%s\".\n", name);
-   assert(!access(name, F_OK));
+   int exists = !access(name, F_OK);
+   DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Opening shm object \"%s\". Already exists? %d\n", name, exists);
+   assert(!exists);
 
    /* Create the shm object. */
    int fd = shm_open(name, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
