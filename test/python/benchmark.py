@@ -35,7 +35,7 @@ G = 1024 * 1024 * 1024
 
 # Configuration. TODO: allow to be changed by input.
 CAPACITY     = 8*G
-QUEUE_DEPTH  = 256
+QUEUE_DEPTH  = 4
 MAX_UNSYNCED = 64
 N_USERS      = 1
 
