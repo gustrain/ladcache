@@ -1230,6 +1230,9 @@ cache_get_reap(ustate_t *user, request_t **out)
         return -EAGAIN; /* Try again once request has been fulfilled. */
     }
 
+    /* Check the string is non-empty. */
+    assert(r->path[0] != '\0');
+
     /* Check if the request failed. */
     if (r->status < 0) {
         LOG(LOG_WARNING, "Reaped a failed request for \"%s\"; %s\n", r->path, strerror(-r->status));
