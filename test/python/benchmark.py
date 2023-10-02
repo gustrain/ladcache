@@ -52,14 +52,13 @@ def benchmark_filepaths(ctx: ladcache.UserState, queue_depth: int, paths: List[s
     total_size = 0
     in_flight = 0
 
-    for path in paths:
-        print("\"{}\"".format(path))
-    exit()
-
     start = time.time()
     while paths or in_flight > 0:
         while (paths and in_flight < queue_depth):
             path = paths.pop()
+            if not path:
+                print("Found bad path: \"{}\"".format(path))
+                exit()
             try:
                 ctx.submit(path)
                 print("in_flight: {} -> {} (added \"{}\")".format(in_flight, in_flight + 1, path))
