@@ -961,6 +961,8 @@ manager_check_cleanup(cache_t *c, ustate_t *ustate)
         return;
     }
 
+    assert(to_clean->path[0] != '\0');
+
     /* Check if it should be cleaned up (not exempt, not in an error state). */
     if (!to_clean->_skip_clean && !to_clean->status) {
         LOG(LOG_DEBUG, "Deep cleaning \"%s\" entry (%s).\n", to_clean->path, to_clean->shm_path);
