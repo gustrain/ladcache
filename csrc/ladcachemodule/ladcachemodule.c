@@ -459,6 +459,7 @@ static struct PyModuleDef LADCacheModule = {
     do {                                                                       \
         Py_INCREF(type_addr);                                                  \
         if (PyModule_AddObject(module, name, (PyObject *) type_addr) < 0) {    \
+            DEBUG_LOG(SCOPE_INT, LOG_CRITICAL, "Failred to register type.\n"); \
             Py_DECREF(type_addr);                                              \
             Py_DECREF(module);                                                 \
             return NULL;                                                       \
