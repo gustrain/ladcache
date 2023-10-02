@@ -81,7 +81,7 @@ test_interactive(cache_t *c)
       ssize_t n = getline(&input, &max_len, stdin);
       if (n < 0) {
          LOG(LOG_CRITICAL, "Failed to get test input; %s\n", strerror(errno));
-         exit(EXIT_FAILURE);
+         return EXIT_FAILURE;
       }
       if (n == 1) { /* Empty input, only '\n'. */
          continue;
@@ -119,9 +119,53 @@ test_interactive(cache_t *c)
 /* Directory test mode. Loads all files in the directory at PATH. Returns 0 on
    sucess, -errno on failure. */
 int
-test_directory(cache_t *c, char *path)
+test_directory(cache_t *c, int queue_depth, char *path)
 {
-   return -ENOSYS;
+   char buf[MAX_PATH_LEN];
+   int buf_size = MAX_PATH_LEN;
+
+   while (true) {
+      if (getline(&buf, &buf_size, stdin) < 0) {
+         DEBUG_LOG(SCOPE_EXT, LOG_CRITICAL, "Unable to read input; %s\n", strerror(errno));
+         return EXIT_FAILURE;
+      }
+
+      /* Check for quit command. */
+      if (strncmp(buf, "q", buf_size) == 0) {
+         printf("Test complete.\n");
+         return EXIT_SUCCESS;
+      }
+
+      /* Otherwise, load the directory. */
+      uint64_t n_unsubmitted = 0; /* TODO. */
+      uint64_t free_requests = queue_depth;
+      while (n_unsubmitted > 0) {
+
+         /* Submit as many requests as we can. */
+         while (free_requests > 0) {
+            /* TODO. Submit requests. */
+         }
+
+         /* Read at least one request, but read as many as we can. */
+         bool last_successful = false;
+         while (free_requests == 0 || last_successful) {
+            /* TODO. Try to read. */
+
+            /* TODO. If read successful, release it and set last_successful. */
+
+            /* TODO. Otherwise, unset last_successful. */
+         }
+      }
+
+      /* Read any remaining stragglers. */
+      while (free_requests < queue_depth) {
+         /* TODO. Reap requests (blocking). */
+
+         /* TODO. Free the requests. */
+      }
+   }
+
+   /* TODO. Print results. */
 }
 
 int
