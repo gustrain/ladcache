@@ -442,7 +442,7 @@ static PyTypeObject PythonCacheType = {
 
 
 /* --------------- */
-/*    MODULE INIT    */
+/*    MODULE INIT  */
 /* --------------- */
 
 /* Module definition. */
