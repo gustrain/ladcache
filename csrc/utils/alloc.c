@@ -72,6 +72,7 @@ int
 shm_alloc(char *name, void **ptr, size_t size)
 {
    /* This name shouldn't already be in use. */
+   DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Opening shm object \"%s\".\n", name);
    assert(!access(name, F_OK));
 
    /* Create the shm object. */
