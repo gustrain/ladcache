@@ -52,6 +52,10 @@ def benchmark_filepaths(ctx: ladcache.UserState, queue_depth: int, paths: List[s
     total_size = 0
     in_flight = 0
 
+    for path in paths:
+        print("\"{}\"".format(path))
+    exit()
+
     start = time.time()
     while paths or in_flight > 0:
         while (paths and in_flight < queue_depth):
@@ -61,7 +65,7 @@ def benchmark_filepaths(ctx: ladcache.UserState, queue_depth: int, paths: List[s
                 print("in_flight: {} -> {} (added \"{}\")".format(in_flight, in_flight + 1, path))
                 in_flight += 1
             except:
-                print("unable to submit; resource unavailable; retrying")
+                # We're waiting on the process to cleanup released entries, so we'll retry.
                 paths.append(path)
         
         # Perhaps sub-optimal? Should only clear out minimal space?
