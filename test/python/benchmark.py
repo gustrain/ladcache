@@ -60,7 +60,7 @@ def benchmark_filepaths(ctx: ladcache.UserState, queue_depth: int, paths: List[s
                 ctx.submit(path)
                 print("in_flight: {} -> {} (added \"{}\")".format(in_flight, in_flight + 1, path))
                 in_flight += 1
-            except ResourceWarning:
+            except:
                 print("unable to submit; resource unavailable; retrying")
                 paths.append(path)
         
