@@ -134,6 +134,8 @@ Request_dealloc(PyObject *self)
     }
 
     /* Release this object. */
+    fprintf(stderr, "test test test 2222\n");
+    fprintf(stderr, "22222 refcnt before free = %ld\n", self->ob_refcnt);
     DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "test test test\n");
     DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "refcnt before free = %ld\n", self->ob_refcnt);
     Py_TYPE(self)->tp_free(self);
