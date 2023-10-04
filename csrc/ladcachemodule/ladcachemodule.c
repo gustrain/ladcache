@@ -125,7 +125,7 @@ Request_dealloc(PyObject *self)
     Request *r = (Request *) self;
 
     PyObject *repr = PyObject_Repr(self);
-    DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Freeing %s at %p (%s).\n", PyUnicode_AsUTF8(repr), self, r->request->path);
+    DEBUG_LOG(SCOPE_INT, LOG_TEMP, "Freeing %s at %p (%s) (refcnt = %ld).\n", PyUnicode_AsUTF8(repr), self, r->request->path, self->ob_refcnt);
     Py_DECREF(repr);
 
     /* Release the wrapped request. */
@@ -134,6 +134,7 @@ Request_dealloc(PyObject *self)
     }
 
     /* Release this object. */
+    DEBUG_LOG(SCOPE_INT, LOG_TEMP, "refcnt before free = %ld\n", self->ob_refcnt);
     Py_TYPE(self)->tp_free(self);
 }
 
