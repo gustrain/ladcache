@@ -79,8 +79,6 @@ def benchmark_filepaths(ctx: ladcache.UserState, queue_depth: int, paths: List[s
             in_flight -= 1
 
             del request
-            time.sleep(0.5)
-            exit()
 
             # refs.append(request)
             # del request
