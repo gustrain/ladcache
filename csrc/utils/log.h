@@ -45,7 +45,6 @@ enum log_level {
     LOG_ERROR,
     LOG_WARNING,
     LOG_INFO,
-    LOG_TEMP,
     LOG_DEBUG,
     LOG_ALL
 };
@@ -60,7 +59,7 @@ static const char *level_prefixes[] = {
 };
 
 /* Change this to modify logging settings. */
-#define LOG_MIN_LEVEL LOG_TEMP
+#define LOG_MIN_LEVEL LOG_DEBUG
 
 /* Master on/off setting. */
 #define DEBUG 1
