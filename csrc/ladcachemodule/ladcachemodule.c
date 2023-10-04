@@ -128,16 +128,14 @@ Request_dealloc(PyObject *self)
     DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Freeing %s at %p (%s) (repr = %p) (refcnt = %ld).\n", PyUnicode_AsUTF8(repr), self, r->request->path, repr, self->ob_refcnt);
     Py_DECREF(repr);
 
-    // /* Release the wrapped request. */
-    // if (r->request != NULL) {
-    //     cache_release(r->ustate, r->request);
-    // }
+    /* Release the wrapped request. */
+    if (r->request != NULL) {
+        cache_release(r->ustate, r->request);
+    }
 
     /* Release this object. */
-    fprintf(stderr, "test test test 2222\n");
-    fprintf(stderr, "22222 refcnt before free = %ld\n", self->ob_refcnt);
-    DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "test test test\n");
-    DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "refcnt before free = %ld\n", self->ob_refcnt);
+    fprintf(stderr, "\n\n\n\n\n\nwe got through\n\n\n\n");
+    exit(EXIT_SUCCESS);
     Py_TYPE(self)->tp_free(self);
 }
 

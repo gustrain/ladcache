@@ -133,18 +133,6 @@ file_get_size(int fd)
     return -ENODEV;
 }
 
-void
-print_header(message_t *header) {
-    printf("magic: 0x%x\n", header->header.magic);
-    printf("type: 0x%x\n", header->header.type);
-    printf("crct: %d\n", header->header.crct);
-    printf("unbl: %d\n", header->header.unbl);
-    printf("rply: %d\n", header->header.rply);
-    printf("flg3: %d\n", header->header.flg3);
-    printf("length: 0x%x (%u)\n", header->header.length, header->header.length);
-    printf("random: 0x%lx\n", header->header.random);
-}
-
 
 /* --------------------------- */
 /*   NETWORK (manager scope)   */
@@ -1284,12 +1272,25 @@ cache_release(ustate_t *user, request_t *request)
         return;
     }
 
+    LOG(LOG_DEBUG, "cache_release\n"
+                   "\trequest->status   = %d\n"
+                   "\trequest->shm_size = %lu\n"
+                   "\trequest->ufd_shm  = %d\n"
+                   "\trequest->udata    = %p\n",
+                   request->status, request->shm_size, request->ufd_shm, request->udata);
     if (request->status == 0) {
         /* ISSUE: Leaking resources on failures. Needs to be more granular. */
-        munmap(request->udata, request->shm_size);
-        close(request->ufd_shm);
+        if (munmap(request->udata, request->shm_size)) {
+            LOG(LOG_CRITICAL, "munmap failed; %s\n", strerror(errno));
+            exit(EXIT_FAILURE);
+        }
+        if (close(request->ufd_shm)) {
+            LOG(LOG_CRITICAL, "close failed; %s\n", strerror(errno));
+            exit(EXIT_FAILURE);
+        }
     }
     QUEUE_PUSH_SAFE(user->cleanup, &user->cleanup_lock, next, prev, request);
+    LOG(LOG_DEBUG, "cache_release done.\n");
 }
 
 
