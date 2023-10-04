@@ -47,12 +47,14 @@ def get_all_filepaths(root):
 
     return filepaths, total_size
 
+refs = []
+
 # Load a directory, returning (seconds to load, # bytes loaded).
 def benchmark_filepaths(ctx: ladcache.UserState, queue_depth: int, paths: List[str]):
     total_size = 0
     in_flight = 0
 
-    refs = []
+    global refs
 
     start = time.time()
     while paths or in_flight > 0:
