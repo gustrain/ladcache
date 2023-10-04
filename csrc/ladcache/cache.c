@@ -1243,7 +1243,7 @@ cache_get_reap(ustate_t *user, request_t **out)
 
     /* Create the mmap. */
     /* RETURN TO HERE FOR MMAP. */
-    if (r->udata = mmap(NULL, r->shm_size, PROT_READ, FLAG_NONE, r->ufd_shm, 0) < 0) {
+    if ((r->udata = mmap(NULL, r->shm_size, PROT_READ, FLAG_NONE, r->ufd_shm, 0)) < 0) {
         LOG(LOG_ERROR, "mmap failed; %s\n", strerror(errno));
         status = -errno;
         goto done;
