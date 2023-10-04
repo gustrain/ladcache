@@ -128,10 +128,10 @@ Request_dealloc(PyObject *self)
     DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Freeing %s at %p (%s) (repr = %p) (refcnt = %ld).\n", PyUnicode_AsUTF8(repr), self, r->request->path, repr, self->ob_refcnt);
     Py_DECREF(repr);
 
-    /* Release the wrapped request. */
-    if (r->request != NULL) {
-        cache_release(r->ustate, r->request);
-    }
+    // /* Release the wrapped request. */
+    // if (r->request != NULL) {
+    //     cache_release(r->ustate, r->request);
+    // }
 
     /* Release this object. */
     fprintf(stderr, "test test test 2222\n");
