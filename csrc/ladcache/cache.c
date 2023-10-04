@@ -1242,7 +1242,8 @@ cache_get_reap(ustate_t *user, request_t **out)
     }
 
     /* Create the mmap. */
-    if (mmap(r->udata, r->shm_size, PROT_READ, FLAG_NONE, r->ufd_shm, 0) < 0) {
+    /* RETURN TO HERE FOR MMAP. */
+    if (r->udata = mmap(NULL, r->shm_size, PROT_READ, FLAG_NONE, r->ufd_shm, 0) < 0) {
         LOG(LOG_ERROR, "mmap failed; %s\n", strerror(errno));
         status = -errno;
         goto done;
@@ -1280,10 +1281,10 @@ cache_release(ustate_t *user, request_t *request)
                    request->status, request->shm_size, request->ufd_shm, request->udata);
     if (request->status == 0) {
         /* ISSUE: Leaking resources on failures. Needs to be more granular. */
-        // if (munmap(request->udata, request->shm_size)) {
-        //     LOG(LOG_CRITICAL, "munmap failed; %s\n", strerror(errno));
-        //     exit(EXIT_FAILURE);
-        // }
+        if (munmap(request->udata, request->shm_size)) {
+            LOG(LOG_CRITICAL, "munmap failed; %s\n", strerror(errno));
+            exit(EXIT_FAILURE);
+        }
         if (close(request->ufd_shm)) {
             LOG(LOG_CRITICAL, "close failed; %s\n", strerror(errno));
             exit(EXIT_FAILURE);
@@ -1370,6 +1371,7 @@ cache_init(cache_t *c,
             LOG(LOG_CRITICAL, "mmap_alloc failed.\n");
             return -ENOMEM;
         }
+        memset(ustate->head, 0, queue_depth * sizeof(request_t));
         ustate->free = ustate->head;
 
         /* Initialize requests. */

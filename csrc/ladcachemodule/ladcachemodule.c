@@ -125,7 +125,7 @@ Request_dealloc(PyObject *self)
     Request *r = (Request *) self;
 
     PyObject *repr = PyObject_Repr(self);
-    DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Freeing %s at %p (%s) (repr = %p) (refcnt = %ld).\n", PyUnicode_AsUTF8(repr), self, r->request->path, repr, self->ob_refcnt);
+    DEBUG_LOG(SCOPE_INT, LOG_DEBUG, "Freeing %s at %p (%s) (udata = %p) (repr = %p) (refcnt = %ld).\n", PyUnicode_AsUTF8(repr), self, r->request->path, r->request->udata, self->ob_refcnt);
     Py_DECREF(repr);
 
     /* Release the wrapped request. */
