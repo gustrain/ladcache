@@ -1280,10 +1280,10 @@ cache_release(ustate_t *user, request_t *request)
                    request->status, request->shm_size, request->ufd_shm, request->udata);
     if (request->status == 0) {
         /* ISSUE: Leaking resources on failures. Needs to be more granular. */
-        if (munmap(request->udata, request->shm_size)) {
-            LOG(LOG_CRITICAL, "munmap failed; %s\n", strerror(errno));
-            exit(EXIT_FAILURE);
-        }
+        // if (munmap(request->udata, request->shm_size)) {
+        //     LOG(LOG_CRITICAL, "munmap failed; %s\n", strerror(errno));
+        //     exit(EXIT_FAILURE);
+        // }
         if (close(request->ufd_shm)) {
             LOG(LOG_CRITICAL, "close failed; %s\n", strerror(errno));
             exit(EXIT_FAILURE);
