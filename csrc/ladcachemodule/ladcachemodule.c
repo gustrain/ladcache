@@ -114,6 +114,7 @@ Request_get_data(PyObject *self, PyObject *args, PyObject *kwds)
 {
     Request *r = (Request *) self;
 
+    fprintf(stderr, "r->request->udata = %p, r->request->size = %lu\n", r->request->udata, r->request->size);
     return PyBytes_FromStringAndSize((char *) r->request->udata,
                                               r->request->size);
 }
