@@ -136,8 +136,6 @@ Request_dealloc(PyObject *self)
     }
 
     /* Release this object. */
-    fprintf(stderr, "\n\n\n\n\n\nwe got through\n\n\n\n");
-    exit(EXIT_SUCCESS);
     Py_TYPE(self)->tp_free(self);
 }
 
