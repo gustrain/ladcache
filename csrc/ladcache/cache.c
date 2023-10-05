@@ -1244,7 +1244,7 @@ cache_get_reap(ustate_t *user, request_t **out)
     /* Create the mmap. */
     /* RETURN TO HERE FOR MMAP. */
     LOG(LOG_DEBUG, "mmap: len = %lu, fd = %d\n", r->shm_size, r->ufd_shm);
-    if ((r->udata = mmap(NULL, r->shm_size, PROT_READ, FLAG_NONE, r->ufd_shm, 0)) == (void *) -1LL) {
+    if ((r->udata = mmap(NULL, r->shm_size, PROT_READ, MAP_PRIVATE, r->ufd_shm, 0)) == (void *) -1LL) {
         LOG(LOG_ERROR, "mmap failed; %s\n", strerror(errno));
         status = -errno;
         goto done;
