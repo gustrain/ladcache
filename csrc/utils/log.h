@@ -59,7 +59,7 @@ static const char *level_prefixes[] = {
 };
 
 /* Change this to modify logging settings. */
-#define LOG_MIN_LEVEL LOG_DEBUG
+#define LOG_MIN_LEVEL LOG_INFO
 
 /* Master on/off setting. */
 #define DEBUG 1
