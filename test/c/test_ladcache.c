@@ -175,7 +175,7 @@ main(int argc, char **argv)
             LOG(LOG_INFO, "test_interactive passed.\n");
          }
       case MODE_DIRECTORY:
-         if ((status = test_directory(cache, path)) < 0) {
+         if ((status = test_directory(cache, DEFAULT_QDEPTH, path)) < 0) {
             LOG(LOG_CRITICAL, "test_directory failed; %s\n", strerror(-status));
          } else {
             LOG(LOG_INFO, "test_directory passed.\n");
