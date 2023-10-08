@@ -402,7 +402,7 @@ monitor_handle_request(message_t *message, cache_t *c, int fd)
 
     /* TODO. Verify the filepath is the correct length (i.e., \0 terminated). */
     char *path = (char *) message->data;
-    LOG(LOG_INFO, "Received request from %s for \"%s\".\n", inet_ntoa(addr.sin_addr), message->data);
+    LOG(LOG_DEBUG, "Received request from %s for \"%s\".\n", inet_ntoa(addr.sin_addr), message->data);
 
     /* Try to retrieve the requested file from our cache. If uncached, reply
        that we are unable to fulfill their request. */
@@ -834,7 +834,7 @@ cache_remote_load(void *args)
     }
 
     /* Send them a request for the file. */
-    LOG(LOG_INFO, "Requesting file \"%s\" from %s.\n", request->path, inet_ntoa((struct in_addr) {.s_addr = loc->ip}));
+    LOG(LOG_DEBUG, "Requesting file \"%s\" from %s.\n", request->path, inet_ntoa((struct in_addr) {.s_addr = loc->ip}));
     int status = network_send_message(TYPE_RQST,
                                       FLAG_NONE,
                                       request->path,
@@ -1242,8 +1242,6 @@ cache_get_reap(ustate_t *user, request_t **out)
     }
 
     /* Create the mmap. */
-    /* RETURN TO HERE FOR MMAP. */
-    LOG(LOG_DEBUG, "mmap: len = %lu, fd = %d\n", r->shm_size, r->ufd_shm);
     if ((r->udata = mmap(NULL, r->shm_size, PROT_READ, MAP_PRIVATE, r->ufd_shm, 0)) == (void *) -1LL) {
         LOG(LOG_ERROR, "mmap failed; %s\n", strerror(errno));
         status = -errno;
@@ -1274,12 +1272,6 @@ cache_release(ustate_t *user, request_t *request)
         return;
     }
 
-    LOG(LOG_DEBUG, "cache_release\n"
-                   "\trequest->status   = %d\n"
-                   "\trequest->shm_size = %lu\n"
-                   "\trequest->ufd_shm  = %d\n"
-                   "\trequest->udata    = %p\n",
-                   request->status, request->shm_size, request->ufd_shm, request->udata);
     if (request->status == 0) {
         /* ISSUE: Leaking resources on failures. Needs to be more granular. */
         if (munmap(request->udata, request->shm_size)) {
@@ -1292,7 +1284,6 @@ cache_release(ustate_t *user, request_t *request)
         }
     }
     QUEUE_PUSH_SAFE(user->cleanup, &user->cleanup_lock, next, prev, request);
-    LOG(LOG_DEBUG, "cache_release done.\n");
 }
 
 
