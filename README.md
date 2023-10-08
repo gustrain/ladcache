@@ -6,6 +6,49 @@
 ![3-way demo](./assets/3-way-example.PNG)
 *Demo of distributed cache with three nodes, using the interactive test mode.*
 
+## Installation
+
+```python setup.py install```
+
+*Note: you may need to `chown` the created build folder for proper permissions.*
+
+## Usage
+
+### `ladcache.Cache(capacity: int, queue_depth: int, max_unsynced: Optional[int] = 1, n_users: Optional[int] = 1)`
+
+Cache with `capacity` bytes of capacity, capable of handling `queue_depth` load requests in parallel. Allows at most `max_unsynced` files to be cached prior to syncing with peers, but will also sync after a short period without having cached any new files as long as there is at least a single uncached file. Supports up to `n_users` users in parallel, which each interact with the cache via a `ladcache.UserState` object obtained by calling `Cache.get_user_state(i)`, for the `i`th user.
+
+#### `Cache.get_user_state(id: int)`
+
+Get a reference to the `ladcache.UserState` object used by the `id`th user.
+
+#### `Cache.spawn_process()`
+
+Spawn the various sub-processes that manage the cache. Must be called before submitting or reaping requests.
+
+### `ladcache.UserState`
+
+#### `UserState.submit(filepath: str)`
+
+Submit a request for `filepath` to be loaded. 
+
+#### `UserState.reap(wait: Optional[bool] = True)`
+
+Blocks until a fulfilled `ladcache.Request` can be reaped and returned. If `wait=False` then `None` will be returned if no request is ready.
+
+### `ladcache.Request`
+
+Fulfilled request, returned by `ladcache.UserState.reap()`. Request must be released (e.g., with `del`) once the user has finished using it in order to prevent leaking resources.
+
+#### `Request.get_filepath()`
+
+Returns the filepath this request loaded as `bytes` with a `utf-8` encoding.
+
+#### `Request.get_data()`
+
+Returns the data this request loaded as `bytes`.
+
+
 ## Project Structure
 
 ### `<repo>/csrc` - project source
@@ -43,8 +86,13 @@ Logging macros.
 #### `utils/uthash.h`
 Hash table macro library ([source](https://troydhanson.github.io/uthash/)).
 
-#### `/ladcachemodule/*` - CPython wrapper
-*TODO*
+#### `/ladcachemodule/ladcachemodule.c` - CPython wrapper
+CPython wrapper implementation.
 
 ### `<repo>/test` - project tests
-*TODO*
+
+#### `c`
+Tests for C interface. Currently only supports an interactive test mode where the user specifies which files should be loaded. To run, build the test with `make`, and then run the test with `./ladcache -i`.
+
+#### `python`
+Interactive tests for C interface and Python wrapper. Currently only supports an interactive test mode where the user specifies which directories should be loaded. Measures file loading speed. Use `python benchmark.py` to run.
