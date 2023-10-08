@@ -45,7 +45,8 @@ enum log_level {
     LOG_ERROR,
     LOG_WARNING,
     LOG_INFO,
-    LOG_DEBUG
+    LOG_DEBUG,
+    LOG_ALL
 };
 
 /* Logging level prefixes, indexed by log levels enum. */

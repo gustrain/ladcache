@@ -31,8 +31,9 @@
 #ifndef __CACHE_H__
 #define __CACHE_H__
 
-#define MAX_IDLE_ITERS 64 * 1024 * 1024
+#define NOT_REACHED() assert(false)
 
+#define MAX_IDLE_ITERS 64 * 1024 * 1024     /* Max idle iters before syncing. */
 #define MAX_PATH_LEN 128                    /* Not including \0. */
 #define MAX_SHM_PATH_LEN MAX_PATH_LEN + 1   /* Not including \0. */
 #define MAX_NAME_LEN 128                    /* Not including \0. */
@@ -89,12 +90,12 @@ typedef struct file_request {
 
 /* File data location for the local cache. Manager/monitor context. */
 typedef struct local_location {
-    char    path[MAX_PATH_LEN + 1];             /* Index in hash table, +1 for \0. */
-    char    shm_path[MAX_SHM_PATH_LEN + 1];     /* Path to the shm object, +1 for \0. */
+    char    path[MAX_PATH_LEN + 1];             /* Hash table key, +1 for \0. */
+    char    shm_path[MAX_SHM_PATH_LEN + 1];     /* Shm obj. path, +1 for \0. */
     int     shm_fd;                             /* FD for shm object. */
-    size_t  shm_size;                           /* Size of shm object in bytes. */
+    size_t  shm_size;                           /* Shm object size in bytes. */
     size_t  size;                               /* Size of file in bytes. */
-    void   *data;                               /* Pointer to shm obj's memory. */
+    void   *data;                               /* Shm object's memory. */
 
     /* Update (new) list. */
     struct local_location *next;    /* Next entry in the new list. */
@@ -222,8 +223,8 @@ typedef struct {
     lcache_t  lcache;   /* Local cache. */
     rcache_t  rcache;   /* Remote cache. */
     uint64_t  random;   /* 64-bit random value from /dev/urandom. */
-    int       n_users;  /* Number of users. */
-    int       qdepth;   /* Queue depth. */
+    uint32_t  n_users;  /* Number of users. */
+    uint32_t  qdepth;   /* Queue depth. */
     peer_t   *peers;    /* Iterable hash table of peers. */
 
     /* Threading info. */
@@ -243,8 +244,16 @@ cache_t *cache_new(void);
 void cache_destroy(cache_t *c);
 int cache_init(cache_t *c, size_t capacity, int queue_depth, int max_unsynced, int n_users);
 
-/* Interface methods. */
+/* Thread management methods. */
+int manager_spawn(cache_t *c);
+int monitor_spawn(cache_t *c);
+int registrar_spawn(cache_t *c);
+void cache_become_manager(cache_t *c);
+void cache_become_monitor(cache_t *c);
+void cache_become_registrar(cache_t *c);
 int cache_start(cache_t *c);
+
+/* Interface methods. */
 int cache_get_submit(ustate_t *user, char *path);
 int cache_get_reap(ustate_t *user, request_t **out);
 int cache_get_reap_wait(ustate_t *user, request_t **out);

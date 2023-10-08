@@ -36,7 +36,7 @@
 #include "../../csrc/utils/fifo.h"
 
 #define DEFAULT_MAX_UNSYNCED 2
-#define DEFAULT_CAPACITY 64 * 1024 * 1024
+#define DEFAULT_CAPACITY 16ul * 1024ul * 1024ul * 1024ul
 #define DEFAULT_QDEPTH 64
 #define DEFAULT_USERS 1
 
@@ -81,7 +81,7 @@ test_interactive(cache_t *c)
       ssize_t n = getline(&input, &max_len, stdin);
       if (n < 0) {
          LOG(LOG_CRITICAL, "Failed to get test input; %s\n", strerror(errno));
-         exit(EXIT_FAILURE);
+         return EXIT_FAILURE;
       }
       if (n == 1) { /* Empty input, only '\n'. */
          continue;
@@ -119,7 +119,7 @@ test_interactive(cache_t *c)
 /* Directory test mode. Loads all files in the directory at PATH. Returns 0 on
    sucess, -errno on failure. */
 int
-test_directory(cache_t *c, char *path)
+test_directory(cache_t *c, int queue_depth, char *path)
 {
    return -ENOSYS;
 }
@@ -175,7 +175,7 @@ main(int argc, char **argv)
             LOG(LOG_INFO, "test_interactive passed.\n");
          }
       case MODE_DIRECTORY:
-         if ((status = test_directory(cache, path)) < 0) {
+         if ((status = test_directory(cache, DEFAULT_QDEPTH, path)) < 0) {
             LOG(LOG_CRITICAL, "test_directory failed; %s\n", strerror(-status));
          } else {
             LOG(LOG_INFO, "test_directory passed.\n");

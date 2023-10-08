@@ -44,34 +44,42 @@
 #include <fcntl.h>
 #include <sched.h>
 
-#define N_HT_LOCKS (16)
-#define PORT_DEFAULT (8080)
-#define MAX_QUEUE_REQUESTS 64
-#define SOCKET_TIMEOUT_S (5)
-#define REGISTER_PERIOD_S (5)
+#define PORT_DEFAULT (8080)     /* Default port for TCP and UDP connections. */
+#define MAX_QUEUE_REQUESTS 64   /* Maximum number of queued network requests. */
+#define SOCKET_TIMEOUT_S (5)    /* Registrar loop socket timeout. */
+#define REGISTER_PERIOD_S (5)   /* Registrar loop broadcast period. */
 
 #define LOG(level, fmt, ...) DEBUG_LOG(SCOPE_INT, level, fmt, ## __VA_ARGS__)
-
 #define MIN(a, b) ((a) > (b) ? (a) : (b))
-#define NOT_REACHED()       \
-    do {                    \
-        assert(false);      \
+
+/* Fail if a spin lock does not init*/
+#define SPIN_MUST_INIT(spinlock)                                               \
+    do {                                                                       \
+        int status = pthread_spin_init(spinlock, PTHREAD_PROCESS_SHARED);      \
+        assert(!status);                                                       \
     } while (0)
-#define SPINLOCK_MUST_INIT(spinlock)    \
-    assert(!pthread_spin_init(spinlock, PTHREAD_PROCESS_SHARED))
+
+/* Signal a non-zero PID. */
+#define KILL_NOT_ZERO(pid, sig)                                                \
+    do {                                                                       \
+        if (pid != 0) {                                                        \
+            kill(pid, sig);                                                    \
+        }                                                                      \
+    } while (0)
+
 
 /* --------- */
 /*   MISC.   */
 /* --------- */
 
 /* Copy IN to OUT, but reformatted to fit shm naming requirements. */
-void
+static void
 shmify(char *in, char *out, size_t in_length, size_t out_length)
 {
     assert(out_length > 0);
 
     out[0] = '/';
-    for (int i = 0; i < MIN(in_length, out_length - 1); i++) {
+    for (size_t i = 0; i < MIN(in_length, out_length - 1); i++) {
         /* Replace all occurences of '/' with '_'. */
         out[i + 1] = in[i] == '/' ? '_' : in[i];
         if (in[i] == '\0') {
@@ -83,7 +91,7 @@ shmify(char *in, char *out, size_t in_length, size_t out_length)
 /* An implementation of strncpy_s, i.e., strncpy that doesn't clobber the
    remainder of the destination buffer with zeros. Modified from example given
    at: https://linux.die.net/man/3/strncpy. */
-char *
+static char *
 strncpy_s(char *dest, const char *src, size_t n)
 {
     size_t i;
@@ -125,18 +133,6 @@ file_get_size(int fd)
     return -ENODEV;
 }
 
-void
-print_header(message_t *header) {
-    printf("magic: 0x%x\n", header->header.magic);
-    printf("type: 0x%x\n", header->header.type);
-    printf("crct: %d\n", header->header.crct);
-    printf("unbl: %d\n", header->header.unbl);
-    printf("rply: %d\n", header->header.rply);
-    printf("flg3: %d\n", header->header.flg3);
-    printf("length: 0x%x (%u)\n", header->header.length, header->header.length);
-    printf("random: 0x%lx\n", header->header.random);
-}
-
 
 /* --------------------------- */
 /*   NETWORK (manager scope)   */
@@ -144,7 +140,7 @@ print_header(message_t *header) {
 
 /* Open a socket to IP (network byte order) on the default port. Returns FD on
    success, -errno on failure. */
-int
+static int
 network_connect(in_addr_t ip)
 {
     struct sockaddr_in peer_addr = {
@@ -173,7 +169,7 @@ network_connect(in_addr_t ip)
 /* Allocates a message_t struct, points OUT to it, and reads a message from FD
    (socket) into it. OUT must only be freed by the user if the function returns
    successfully. Returns 0 on success, -errno on failure. */
-int
+static int
 network_get_message(int fd, message_t **out)
 {
     ssize_t bytes, temp;
@@ -222,7 +218,7 @@ network_get_message(int fd, message_t **out)
 /* Constructs and sends a message to the socket on FD with SIZE bytes of DATA
    as the payload. Does NOT close FD once finished. Returns 0 on sucess and
    -errno on failure. */
-int
+static int
 network_send_message(mtype_t type, int flags, const void *data, uint32_t size, int fd)
 {
     /* Configure and send the header. */
@@ -267,7 +263,7 @@ network_send_message(mtype_t type, int flags, const void *data, uint32_t size, i
 
 /* Announce our existence to other members of the distributed cache. Returns 0
    on success and -errno on failure. */
-int
+static int
 cache_register(cache_t *c)
 {
     /* Create broadcast socket. */
@@ -323,7 +319,7 @@ cache_register(cache_t *c)
 /* Send a message to every known peer with our list of newly-cached files.
    Returns 0 on success, -errno on failure. Assumes that there is at least one
    unsynced filepath in the list. */
-int
+static int
 cache_sync(cache_t *c)
 {
     /* No-op if the unsynced list is already empty. */
@@ -394,7 +390,7 @@ cache_sync(cache_t *c)
 
 /* Handle a file request by sending the requested file data. Returns 0 on
    success, -errno on failure. */
-int
+static int
 monitor_handle_request(message_t *message, cache_t *c, int fd)
 {
     struct sockaddr_in addr;
@@ -406,7 +402,7 @@ monitor_handle_request(message_t *message, cache_t *c, int fd)
 
     /* TODO. Verify the filepath is the correct length (i.e., \0 terminated). */
     char *path = (char *) message->data;
-    LOG(LOG_INFO, "Received request from %s for \"%s\".\n", inet_ntoa(addr.sin_addr), message->data);
+    LOG(LOG_DEBUG, "Received request from %s for \"%s\".\n", inet_ntoa(addr.sin_addr), message->data);
 
     /* Try to retrieve the requested file from our cache. If uncached, reply
        that we are unable to fulfill their request. */
@@ -423,7 +419,7 @@ monitor_handle_request(message_t *message, cache_t *c, int fd)
 }
 
 /* Handle a directory sync message. */
-int
+static int
 monitor_handle_sync(message_t *message, cache_t *c, int fd)
 {
     /* TODO. Verify filepaths are valid ('\0' terminated, etc.) */
@@ -479,7 +475,7 @@ struct monitor_handle_connection_args {
 };
 
 /* Handles a remote read request. */
-void *
+static void *
 monitor_handle_connection(void *args)
 {
     /* Get the arguments passed to us. */
@@ -510,7 +506,7 @@ monitor_handle_connection(void *args)
 
 /* Monitor main loop. Handles all incoming remote read requests. Should never
    return when running correctly. On failure returns negative errno value. */
-void *
+static void *
 monitor_loop(void *args)
 {
     cache_t *c = (cache_t *) args;
@@ -586,7 +582,7 @@ monitor_spawn(cache_t *c)
 /* ----------------------------- */
 
 /* Loop to listen for incoming UDP registration datagrams. */
-void *
+static void *
 registrar_loop(void *args)
 {
     cache_t *c = (cache_t *) args;
@@ -713,7 +709,7 @@ registrar_spawn(cache_t *c)
 /* ----------------------------------------- */
 
 /* Checks the local cache for PATH. Returns TRUE if contained, FALSE if not. */
-bool
+static bool
 cache_local_contains(lcache_t *lc, char *path)
 {
     lloc_t *loc = NULL;
@@ -725,12 +721,12 @@ cache_local_contains(lcache_t *lc, char *path)
 /* Caches SIZE bytes of DATA using PATH as the key. Copies DATA into a newly
    allocated shm object. Returns 0 on success, and a negative errno value on
    failure. */
-int
+static int
 cache_local_store(lcache_t *lc, char *path, uint8_t *data, size_t size)
 {
     /* Verify we can fit this in the cache. */
     if (lc->used + size > lc->capacity) {
-        LOG(LOG_DEBUG, "Item of %lu bytes too big to fit in local cache.\n", size);
+        LOG(LOG_DEBUG, "%s (%lu byte) is too big to fit in local cache.\n", path, size);
         return -E2BIG;
     }
 
@@ -763,7 +759,7 @@ cache_local_store(lcache_t *lc, char *path, uint8_t *data, size_t size)
 
 /* Fill a request with data from the local cache. Returns 0 on success, -errno
    on failure. */
-int
+static int
 cache_local_load(lcache_t *lc, request_t *request)
 {
     /* Get the location record of the cached file. */
@@ -775,6 +771,7 @@ cache_local_load(lcache_t *lc, request_t *request)
     }
 
     /* Fill the request. */
+    request->size = loc->size;
     request->_ldata = loc->data;
     request->_lfd_shm = loc->shm_fd;
     request->_skip_clean = true; /* Don't purge this entry once we're done with
@@ -789,7 +786,7 @@ cache_local_load(lcache_t *lc, request_t *request)
 /* ------------------------------------------ */
 
 /* Checks the remote cache for PATH. Returns TRUE if contained, FALSE if not. */
-bool
+static bool
 cache_remote_contains(rcache_t *rc, char *path)
 {
     rloc_t *loc = NULL;
@@ -809,7 +806,7 @@ struct cache_remote_load_args {
    cache_remote_load_args struct, which will be freed once arguments have been
    parsed. Assumes that the caller has already removed REQUEST from USER's ready
    queue. The completed request will be placed into USER's done queue. */
-void *
+static void *
 cache_remote_load(void *args)
 {
     /* Get the arguments passed to us. */
@@ -837,7 +834,7 @@ cache_remote_load(void *args)
     }
 
     /* Send them a request for the file. */
-    LOG(LOG_INFO, "Requesting file \"%s\" from %s.\n", request->path, inet_ntoa((struct in_addr) {.s_addr = loc->ip}));
+    LOG(LOG_DEBUG, "Requesting file \"%s\" from %s.\n", request->path, inet_ntoa((struct in_addr) {.s_addr = loc->ip}));
     int status = network_send_message(TYPE_RQST,
                                       FLAG_NONE,
                                       request->path,
@@ -889,6 +886,7 @@ cache_remote_load(void *args)
     LOG(LOG_DEBUG, "Received \"%s\" (%u bytes) from %s.\n", request->path, response->header.length, inet_ntoa((struct in_addr) {.s_addr = loc->ip}));
 
    done:
+    assert(request->path[0] != '\0');
     QUEUE_PUSH_SAFE(user->done, &user->done_lock, next, prev, request);
     free(response);
     return NULL;
@@ -900,7 +898,7 @@ cache_remote_load(void *args)
 /* --------------------------- */
 
 /* Submit an IO request to io_uring. Returns 0 on success, -errno on failure. */
-int
+static int
 manager_submit_io(ustate_t *ustate, request_t *r)
 {
     LOG(LOG_DEBUG, "Loading \"%s\" from storage.\n", r->path);
@@ -942,7 +940,7 @@ manager_submit_io(ustate_t *ustate, request_t *r)
 /* Check whether USTATE has any backend resources to be cleaned up. If resources
    exist, clean up a single request_t struct per call. Returns 0 on success,
    -errno on failure. */
-void
+static void
 manager_check_cleanup(cache_t *c, ustate_t *ustate)
 {
     /* Check if there's anything in the queue. */
@@ -951,6 +949,8 @@ manager_check_cleanup(cache_t *c, ustate_t *ustate)
     if (to_clean == NULL) {
         return;
     }
+
+    assert(to_clean->path[0] != '\0');
 
     /* Check if it should be cleaned up (not exempt, not in an error state). */
     if (!to_clean->_skip_clean && !to_clean->status) {
@@ -975,7 +975,7 @@ manager_check_cleanup(cache_t *c, ustate_t *ustate)
 
 /* Check whether USTATE has a pending request and execute it if it does. Returns
    0 on sucess, -errno on failure. */
-int
+static int
 manager_check_ready(cache_t *c, ustate_t *ustate)
 {
     /* Check if there's a request waiting in the ready queue. */
@@ -991,6 +991,7 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
         if (pending->status < 0) {
             LOG(LOG_ERROR, "cache_local_load failed; %s\n", strerror(-pending->status));
         }
+        assert(pending->path[0] != '\0');
         QUEUE_PUSH_SAFE(ustate->done, &ustate->done_lock, next, prev, pending);
 
         return 0;
@@ -1012,7 +1013,8 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
         /* Spawn a thread to handling requesting the file from the peer. It will
            take care of itself and doesn't require management. */
         pthread_t _;
-        assert(!pthread_create(&_, NULL, cache_remote_load, args));
+        int status = pthread_create(&_, NULL, cache_remote_load, args);
+        assert(!status);
 
         return 0;
     }
@@ -1021,6 +1023,7 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
     int status = manager_submit_io(ustate, pending);
     if (status < 0) {
         pending->status = status;
+        assert(pending->path[0] != '\0');
         QUEUE_PUSH_SAFE(ustate->done, &ustate->done_lock, next, prev, pending);
         LOG(LOG_ERROR, "manager_submit_io failed; %s\n", strerror(-status));
         return status;
@@ -1032,7 +1035,7 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
 /* Check if any storage requests have completed their IO. Note that the network
    monitor handles completed network requests. Returns 0 on sucess, -errno on
    failure. */
-void
+static void
 manager_check_done(cache_t *c, ustate_t *ustate)
 {
     /* Drain the io_uring completion queue into our completion queue. Using
@@ -1075,12 +1078,13 @@ manager_check_done(cache_t *c, ustate_t *ustate)
         }
 
        skip_cache:
+        assert(request->path[0] != '\0');
         QUEUE_PUSH_SAFE(ustate->done, &ustate->done_lock, next, prev, request);
     }
 }
 
 /* Manager main loop. Handles all pending requests. */
-void *
+static void *
 manager_loop(void *args)
 {
     cache_t *c = (cache_t *) args;
@@ -1136,6 +1140,31 @@ manager_spawn(cache_t *c)
 /*   GENERIC INTERFACE (user scope)   */
 /* ---------------------------------- */
 
+/* Become the manager thread. Does not return. */
+void
+cache_become_manager(cache_t *c)
+{
+    c->manager_thread = getpid();
+    manager_loop((void *) c);
+}
+
+/* Become the monitor thread. Does not return. */
+void
+cache_become_monitor(cache_t *c)
+{
+    c->monitor_thread = getpid();
+    monitor_loop((void *) c);
+}
+
+/* Become the registrar thread. Does not return. */
+void
+cache_become_registrar(cache_t *c)
+{
+    c->registrar_thread = getpid();
+    registrar_loop((void *) c);
+}
+
+
 /* Spawn the manager, the monitor, and the registrar. Returns 0 on success,
    -errno on failure. */
 int
@@ -1167,7 +1196,7 @@ cache_get_submit(ustate_t *user, char *path)
     request_t *request = NULL;
     QUEUE_POP_SAFE(user->free, &user->free_lock, next, prev, request);
     if (request == NULL) {
-        LOG(LOG_WARNING, "Free queue is empty; no request_t structs available.\n");
+        LOG(LOG_DEBUG, "Free queue is empty; no request_t structs available.\n");
         return -EAGAIN; /* Try again once completed requests have been freed. */
     }
     memset(request, 0, sizeof(request_t));
@@ -1195,6 +1224,9 @@ cache_get_reap(ustate_t *user, request_t **out)
         return -EAGAIN; /* Try again once request has been fulfilled. */
     }
 
+    /* Check the string is non-empty. */
+    assert(r->path[0] != '\0');
+
     /* Check if the request failed. */
     if (r->status < 0) {
         LOG(LOG_WARNING, "Reaped a failed request for \"%s\"; %s\n", r->path, strerror(-r->status));
@@ -1210,7 +1242,7 @@ cache_get_reap(ustate_t *user, request_t **out)
     }
 
     /* Create the mmap. */
-    if (mmap(r->udata, r->shm_size, PROT_READ, FLAG_NONE, r->ufd_shm, 0) < 0) {
+    if ((r->udata = mmap(NULL, r->shm_size, PROT_READ, MAP_PRIVATE, r->ufd_shm, 0)) == (void *) -1LL) {
         LOG(LOG_ERROR, "mmap failed; %s\n", strerror(errno));
         status = -errno;
         goto done;
@@ -1236,10 +1268,20 @@ cache_get_reap_wait(ustate_t *user, request_t **out)
 void
 cache_release(ustate_t *user, request_t *request)
 {
+    if (request == NULL) {
+        return;
+    }
+
     if (request->status == 0) {
-        /* ISSUE: Leaking resources on failure. Needs to be more granular. */
-        munmap(request->udata, request->shm_size);
-        close(request->ufd_shm);
+        /* ISSUE: Leaking resources on failures. Needs to be more granular. */
+        if (munmap(request->udata, request->shm_size)) {
+            LOG(LOG_CRITICAL, "munmap failed; %s\n", strerror(errno));
+            exit(EXIT_FAILURE);
+        }
+        if (close(request->ufd_shm)) {
+            LOG(LOG_CRITICAL, "close failed; %s\n", strerror(errno));
+            exit(EXIT_FAILURE);
+        }
     }
     QUEUE_PUSH_SAFE(user->cleanup, &user->cleanup_lock, next, prev, request);
 }
@@ -1271,7 +1313,7 @@ cache_destroy(cache_t *c)
     /* Free all of the user states. */
     if (c->ustates != NULL) {
         /* Free the queues. */
-        for (int i = 0; i < c->n_users; i++) {
+        for (uint32_t i = 0; i < c->n_users; i++) {
             mmap_free(c->ustates[i].head, c->qdepth * sizeof(request_t));
             io_uring_queue_exit(&c->ustates[i].ring);
         }
@@ -1279,6 +1321,11 @@ cache_destroy(cache_t *c)
         /* Free the user states. */
         mmap_free(c->ustates, c->n_users * sizeof(ustate_t));
     }
+
+    /* Kill the backend threads, if initialized. */
+    KILL_NOT_ZERO(c->registrar_thread, SIGKILL);
+    KILL_NOT_ZERO(c->monitor_thread, SIGKILL);
+    KILL_NOT_ZERO(c->manager_thread, SIGKILL);
 
     /* Destroy the cache struct itself. */
     mmap_free(c, sizeof(cache_t));
@@ -1307,7 +1354,7 @@ cache_init(cache_t *c,
     /* Initialize user states. */
     c->n_users = n_users;
     c->qdepth = queue_depth;
-    for (int i = 0; i < c->n_users; i++) {
+    for (uint32_t i = 0; i < c->n_users; i++) {
         ustate_t *ustate = &c->ustates[i];
 
         /* Allocate requests (queue entries). */
@@ -1316,6 +1363,7 @@ cache_init(cache_t *c,
             LOG(LOG_CRITICAL, "mmap_alloc failed.\n");
             return -ENOMEM;
         }
+        memset(ustate->head, 0, queue_depth * sizeof(request_t));
         ustate->free = ustate->head;
 
         /* Initialize requests. */
@@ -1342,10 +1390,10 @@ cache_init(cache_t *c,
         }
 
         /* Initialize the locks. */
-        SPINLOCK_MUST_INIT(&ustate->free_lock);
-        SPINLOCK_MUST_INIT(&ustate->ready_lock);
-        SPINLOCK_MUST_INIT(&ustate->done_lock);
-        SPINLOCK_MUST_INIT(&ustate->cleanup_lock);
+        SPIN_MUST_INIT(&ustate->free_lock);
+        SPIN_MUST_INIT(&ustate->ready_lock);
+        SPIN_MUST_INIT(&ustate->done_lock);
+        SPIN_MUST_INIT(&ustate->cleanup_lock);
     }
 
     /* Set up the local cache. */
@@ -1360,11 +1408,14 @@ cache_init(cache_t *c,
 
     /* Set up the remote cache. */
     c->rcache.ht = NULL;
-    SPINLOCK_MUST_INIT(&c->rcache.ht_lock);
+    SPIN_MUST_INIT(&c->rcache.ht_lock);
 
     /* Set up the total cache. */
+    c->registrar_thread = 0;
+    c->monitor_thread = 0;
+    c->manager_thread = 0;
     c->peers = NULL;
-    SPINLOCK_MUST_INIT(&c->peer_lock);
+    SPIN_MUST_INIT(&c->peer_lock);
 
     /* Get a unique (actually random) number to serve as this machine's ID to
        avoid self-adding. See comments in cache.h for more details. */

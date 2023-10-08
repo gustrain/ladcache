@@ -71,6 +71,8 @@
                   /* Access to tail without a forward loop. */                \
                   (head)->prev = (out)->prev;                                 \
             }                                                                 \
+            (out)->next = NULL;                                               \
+            (out)->prev = NULL;                                               \
       } while (0)
 
 /* General-purpose pop method that acquires a spinlock while working.
