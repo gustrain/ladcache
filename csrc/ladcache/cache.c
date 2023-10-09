@@ -1128,6 +1128,7 @@ manager_loop(void *args)
             exit(EXIT_FAILURE);
         }
     }
+    LOG(LOG_INFO, "io_uring initialized\n");
 
     /* Loop round-robin through the user ustates and check for pending and
        completed requests that require status queue updates. */
