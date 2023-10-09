@@ -906,7 +906,7 @@ manager_submit_io(ustate_t *ustate, request_t *r)
     LOG(LOG_DEBUG, "Loading \"%s\" from storage.\n", r->path);
 
     /* Open the file. */
-    r->_lfd_file = open(r->path, O_RDONLY | __O_DIRECT);
+    r->_lfd_file = open(r->path, O_RDWR | __O_DIRECT);
     if (r->_lfd_file < 0) {
         LOG(LOG_ERROR, "Failed to open \"%s\"; %s\n", r->path, strerror(errno));
         return -errno;
