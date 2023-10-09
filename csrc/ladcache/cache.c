@@ -910,6 +910,15 @@ manager_submit_io(ustate_t *ustate, request_t *r)
         return -errno;
     }
 
+    char buf[128];
+    ssize_t ret = read(r->_lfd_file, buf, 128);
+    if (ret < 0) {
+        LOG(LOG_ERROR, "Failed to read; %s\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    } else {
+        LOG(LOG_INFO, "Successfully read 128 bytes.\n");
+    }
+
     /* Get the size of the file, rounding the size up to the nearest multiple of
        4KB for O_DIRECT compatibility. */
     off_t size = file_get_size(r->_lfd_file);
