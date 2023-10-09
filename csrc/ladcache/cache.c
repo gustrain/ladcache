@@ -1063,7 +1063,20 @@ manager_check_done(cache_t *c, ustate_t *ustate)
         request_t *request = io_uring_cqe_get_data(cqe);
         io_uring_cqe_seen(&ustate->ring, cqe);
         if (cqe->res < 0) {
-            LOG(LOG_ERROR, "cqe has bad status; %s\n", strerror(-cqe->res));
+            fprintf(stderr,
+                    "asynchronous read failed; %s (fd = %d (flags = 0x%x), _lfd_shm = %d (flags = 0x%x), data @ %p (4K aligned? %d), size = 0x%lx (4K aligned? %d)).\n",
+                    strerror(-cqe->res),
+                    request->_lfd_file,
+                    fcntl(request->_lfd_file, F_GETFD),
+                    request->_lfd_shm,
+                    fcntl(request->_lfd_shm, F_GETFD),
+                    request->_ldata,
+                    ((uint64_t) request->_ldata) % 4096 == 0,
+                    request->size,
+                    request->size % 4096 == 0);
+
+
+            LOG(LOG_ERROR, "cqe has bad status; %s (fd = %d (flags = 0x%x))\n", strerror(-cqe->res));
         }
 
         LOG(LOG_DEBUG, "loaded data for \"%s\": ", request->path);
