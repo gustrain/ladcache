@@ -513,6 +513,15 @@ monitor_loop(void *args)
 {
     cache_t *c = (cache_t *) args;
 
+    for (unsigned i = 0; i < c->n_users; i++) {
+        int status = io_uring_queue_init(c->qdepth, &c->ustates[i].ring, 0);
+        if (status < 0) {
+            LOG(LOG_CRITICAL, "io_uring_queue_init failed.\n");
+            cache_destroy(c);
+            return status;
+        }
+    }
+
     /* Open the listening socket. */
     int lfd = socket(AF_INET, SOCK_STREAM, 0);
     if (lfd < 0) {
@@ -1408,14 +1417,6 @@ cache_init(cache_t *c,
         ustate->ready = NULL;
         ustate->done = NULL;
         ustate->cleanup = NULL;
-
-        /* Initialize the io_uring queues. */
-        int status = io_uring_queue_init(queue_depth, &ustate->ring, 0);
-        if (status < 0) {
-            LOG(LOG_CRITICAL, "io_uring_queue_init failed.\n");
-            cache_destroy(c);
-            return status;
-        }
 
         /* Initialize the locks. */
         SPIN_MUST_INIT(&ustate->free_lock);
