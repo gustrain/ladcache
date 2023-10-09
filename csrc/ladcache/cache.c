@@ -1046,8 +1046,8 @@ manager_check_done(cache_t *c, ustate_t *ustate)
         io_uring_cqe_seen(&ustate->ring, cqe);
 
         LOG(LOG_DEBUG, "loaded data for \"%s\": ");
-        for (int i = 0; i < 16; i++) {
-            fprintf(stderr, "%x ");
+        for (int i = 0; i < 32; i++) {
+            fprintf(stderr, "%hx ", ((uint8_t *) request->_ldata)[i]);
         }
         fprintf(stderr, "\n");
 
