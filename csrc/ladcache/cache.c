@@ -513,12 +513,12 @@ monitor_loop(void *args)
 {
     cache_t *c = (cache_t *) args;
 
+    /* Initialize the io_uring queues. */
     for (unsigned i = 0; i < c->n_users; i++) {
         int status = io_uring_queue_init(c->qdepth, &c->ustates[i].ring, 0);
         if (status < 0) {
-            LOG(LOG_CRITICAL, "io_uring_queue_init failed.\n");
-            cache_destroy(c);
-            return status;
+            LOG(LOG_CRITICAL, "io_uring_queue_init failed in monitor_loop.\n");
+            exit(EXIT_FAILURE);
         }
     }
 
@@ -954,9 +954,6 @@ manager_submit_io(ustate_t *ustate, request_t *r)
     /* Tell io_uring to read the file into the buffer. */
     struct io_uring_sqe *sqe = io_uring_get_sqe(&ustate->ring);
     LOG(LOG_INFO, "prepping read with fd = %d, data = %p, size = %lu.\n", r->_lfd_file, r->_ldata, r->shm_size);
-    for (size_t i = 0; i < r->shm_size; i++) {
-        ((uint8_t *) r->_ldata)[i];
-    }
     io_uring_prep_read(sqe, r->_lfd_file, r->_ldata, r->shm_size, 0);
     io_uring_sqe_set_data(sqe, r);
     io_uring_submit(&ustate->ring);
