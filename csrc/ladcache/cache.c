@@ -1045,6 +1045,13 @@ manager_check_done(cache_t *c, ustate_t *ustate)
         request_t *request = io_uring_cqe_get_data(cqe);
         io_uring_cqe_seen(&ustate->ring, cqe);
 
+        LOG(LOG_DEBUG, "loaded data for \"%s\": ");
+        for (int i = 0; i < 16; i++) {
+            fprintf(stderr, "%x ");
+        }
+        fprintf(stderr, "\n");
+
+
         /* Try to cache this file. */
         if (c->lcache.used + request->shm_size <= c->lcache.capacity) {
             lloc_t *loc = malloc(sizeof(lloc_t));
