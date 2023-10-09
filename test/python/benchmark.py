@@ -49,7 +49,7 @@ def get_all_filepaths(root):
 
 # Check whether the file at FILEPATH contains the data in DATA.
 def integrity(filepath: str, data: bytes):
-    with open(filepath, 'b') as file:
+    with open(filepath, 'rb') as file:
         truth = file.read()
         for b1, b2 in zip(truth, data):
             if b1 != b2:
