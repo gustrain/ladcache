@@ -25,8 +25,8 @@ import ladcache
 from glob import glob
 from typing import List
 import numpy as np
+import argparse
 import time
-import sys
 import os
 
 K = 1024
@@ -47,14 +47,21 @@ def get_all_filepaths(root):
 
     return filepaths, total_size
 
-refs = []
+# Check whether the file at FILEPATH contains the data in DATA.
+def integrity(filepath: str, data: bytes):
+    with open(filepath, 'b') as file:
+        truth = file.read()
+        for b1, b2 in zip(truth, data):
+            if b1 != b2:
+                return False
+    
+    return True
 
 # Load a directory, returning (seconds to load, # bytes loaded).
-def benchmark_filepaths(ctx: ladcache.UserState, queue_depth: int, paths: List[str]):
+def benchmark_filepaths(ctx: ladcache.UserState, queue_depth: int, paths: List[str], check_integrity: bool = False):
     total_size = 0
     in_flight = 0
-
-    global refs
+    matches = 0
 
     start = time.time()
     while paths or in_flight > 0:
@@ -73,22 +80,34 @@ def benchmark_filepaths(ctx: ladcache.UserState, queue_depth: int, paths: List[s
             if (request == None):
                 break
 
-            total_size += len(request.get_data())
+            data = request.get_data()
+            if check_integrity:
+                path = request.get_filepath().decode('utf-8')
+                matches += integrity(path, data)
+
+            total_size += len(data)
             in_flight -= 1
 
-            del request
+            del request, data
     
     # Get the stragglers
     while in_flight > 0:
         request = ctx.reap(wait=True)
-        total_size += len(request.get_data())
+
+        data = request.get_data()
+        if check_integrity:
+            path = request.get_filepath().decode('utf-8')
+            matches += integrity(path, data)
+
+        total_size += len(data)
         in_flight -= 1
-        del request
+
+        del request, data
     duration = time.time() - start
 
-    return duration, total_size
+    return duration, total_size, matches
 
-def run_benchmark(ctx: ladcache.UserState, queue_depth: int, directory: str):
+def run_benchmark(ctx: ladcache.UserState, queue_depth: int, directory: str, check_integrity: bool = False):
     try:
         paths, size = get_all_filepaths(directory)
     except FileNotFoundError:
@@ -97,15 +116,21 @@ def run_benchmark(ctx: ladcache.UserState, queue_depth: int, directory: str):
     
     # Run the benchmark
     print("Benchmarking \"{}\" ({} files, {} MB)... ".format(directory, len(paths), size / M), end="")
-    duration, bytes_loaded = benchmark_filepaths(ctx, QUEUE_DEPTH, paths)
-    if (bytes_loaded != size):
+    duration, bytes_loaded, matches = benchmark_filepaths(ctx, QUEUE_DEPTH, paths, check_integrity)
+    if bytes_loaded != size:
         print("FAIL; incorrect number of bytes loaded: should be {} B, got {} B.".format(size, bytes_loaded))
+    if check_integrity and matches != len(paths):
+        print("FAIL; integrity check failed: {}/{} files passed".format(matches, len(paths)))
     else:
         print("{:.4f} MB in {:.4f} seconds ({:.4f} MB/s)".format(size / M, duration, (size / M) / duration))
 
+parser = argparse.ArgumentParser(description="ladcache benchmark")
+parser.add_argument("-i", "--integrity", default=False, type=bool,
+                    help="Check integrity of loaded files. Local and remote files must be identical.")
 
 def main():
     np.random.seed(42)
+    args = parser.parse_args()
 
     # Create a very large cache to allow everything to be loaded.
     cache = ladcache.Cache(CAPACITY, QUEUE_DEPTH, MAX_UNSYNCED, N_USERS)
@@ -117,7 +142,7 @@ def main():
         if directory in {"q", "quit"}:
             break
 
-        run_benchmark(ctx, QUEUE_DEPTH, directory)
+        run_benchmark(ctx, QUEUE_DEPTH, directory, args.integrity)
 
     # Cleanup the cache.
     del cache
