@@ -1044,6 +1044,9 @@ manager_check_done(cache_t *c, ustate_t *ustate)
     while (!io_uring_peek_cqe(&ustate->ring, &cqe)) {
         request_t *request = io_uring_cqe_get_data(cqe);
         io_uring_cqe_seen(&ustate->ring, cqe);
+        if (cqe->res < 0) {
+            LOG(LOG_ERROR, "cqe has bad status; %s\n", strerror(-cqe->res));
+        }
 
         LOG(LOG_DEBUG, "loaded data for \"%s\": ", request->path);
         for (int i = 0; i < 32; i++) {
