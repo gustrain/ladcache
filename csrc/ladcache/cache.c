@@ -912,6 +912,8 @@ manager_submit_io(ustate_t *ustate, request_t *r)
         return -errno;
     }
 
+    LOG(LOG_INFO, "_lfd_file flags = 0x%x\n", fcntl(r->_lfd_file, F_GETFD));
+
     void *buf;
     posix_memalign(&buf, 4096, 8192);
     LOG(LOG_INFO, "poc read with fd = %d, data = %p, size = %lu.\n", r->_lfd_file, buf, 8192lu);
