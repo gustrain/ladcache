@@ -914,7 +914,7 @@ manager_submit_io(ustate_t *ustate, request_t *r)
 
     void *buf;
     posix_memalign(&buf, 4096, 8192);
-    LOG(LOG_INFO, "poc read with fd = %d, data = %p, size = %lu.\n", r->_lfd_file, buf, 8192);
+    LOG(LOG_INFO, "poc read with fd = %d, data = %p, size = %lu.\n", r->_lfd_file, buf, 8192lu);
     ssize_t ret = read(r->_lfd_file, buf, 8192);
     if (ret < 0) {
         LOG(LOG_ERROR, "Failed to read; %s\n", strerror(errno));
