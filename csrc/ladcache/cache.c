@@ -1072,8 +1072,8 @@ manager_check_done(cache_t *c, ustate_t *ustate)
                     fcntl(request->_lfd_shm, F_GETFD),
                     request->_ldata,
                     ((uint64_t) request->_ldata) % 4096 == 0,
-                    request->size,
-                    request->size % 4096 == 0);
+                    request->shm_size,
+                    request->shm_size % 4096 == 0);
         }
 
         LOG(LOG_DEBUG, "loaded data for \"%s\": ", request->path);
