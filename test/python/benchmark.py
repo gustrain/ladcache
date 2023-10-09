@@ -84,6 +84,10 @@ def benchmark_filepaths(ctx: ladcache.UserState, queue_depth: int, paths: List[s
                 break
 
             data = request.get_data()
+
+            print(data)
+            exit()
+
             if check_integrity:
                 path = request.get_filepath().decode('utf-8')
                 matches += integrity(path, data)
