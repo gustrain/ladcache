@@ -57,7 +57,6 @@ def integrity(filepath: str, data: bytes):
                 print("{} failed (loaded {} != {} wanted)".format(filepath, b1, b2))
                 return False
     
-    print("{} passed integrity check".format(filepath))
     return True
 
 # Load a directory, returning (seconds to load, # bytes loaded).
