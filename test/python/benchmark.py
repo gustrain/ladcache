@@ -117,19 +117,19 @@ def run_benchmark(ctx: ladcache.UserState, queue_depth: int, directory: str, che
         print("Directory \"{}\" does not exist.".format(directory))
         return
     
-    n_paths = 
+    n_paths = len(paths)
     
     # Run the benchmark
     print("Benchmarking \"{}\" ({} files, {} MB)... ".format(directory, len(paths), size / M), end="")
     duration, bytes_loaded, matches = benchmark_filepaths(ctx, QUEUE_DEPTH, paths, check_integrity)
     if bytes_loaded != size:
         print("FAIL; incorrect number of bytes loaded: should be {} B, got {} B.".format(size, bytes_loaded))
-    if check_integrity and matches != len(paths):
-        print("FAIL; integrity check failed: {}/{} files passed".format(matches, len(paths)))
+    if check_integrity and matches != n_paths:
+        print("FAIL; integrity check failed: {}/{} files passed".format(matches, n_paths))
     else:
         print("{:.4f} MB in {:.4f} seconds ({:.4f} MB/s)".format(size / M, duration, (size / M) / duration))
         if check_integrity:
-            print("All ({}/{}) files passed integrity checks".format(matches, len(paths)))
+            print("All ({}/{}) files passed integrity checks".format(matches, n_paths))
 
 parser = argparse.ArgumentParser(description="ladcache benchmark")
 parser.add_argument("-i", "--integrity", default=False, type=bool,
