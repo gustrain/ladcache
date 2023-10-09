@@ -930,6 +930,7 @@ manager_submit_io(ustate_t *ustate, request_t *r)
 
     /* Tell io_uring to read the file into the buffer. */
     struct io_uring_sqe *sqe = io_uring_get_sqe(&ustate->ring);
+    LOG(LOG_INFO, "prepping read with fd = %d, data = %p, size = %lu.\n", r->_lfd_file, r->_ldata, r->shm_size);
     io_uring_prep_read(sqe, r->_lfd_file, r->_ldata, r->shm_size, 0);
     io_uring_sqe_set_data(sqe, r);
     io_uring_submit(&ustate->ring);
