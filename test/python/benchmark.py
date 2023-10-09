@@ -123,6 +123,8 @@ def run_benchmark(ctx: ladcache.UserState, queue_depth: int, directory: str, che
         print("FAIL; integrity check failed: {}/{} files passed".format(matches, len(paths)))
     else:
         print("{:.4f} MB in {:.4f} seconds ({:.4f} MB/s)".format(size / M, duration, (size / M) / duration))
+        if check_integrity:
+            print("All ({}/{}) files passed integrity checks".format(matches, len(paths)))
 
 parser = argparse.ArgumentParser(description="ladcache benchmark")
 parser.add_argument("-i", "--integrity", default=False, type=bool,
