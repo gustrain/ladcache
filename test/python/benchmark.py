@@ -43,6 +43,7 @@ N_USERS      = 1
 def get_all_filepaths(root):
     # Taken from https://stackoverflow.com/a/18394205
     filepaths = [y for x in os.walk(root) for y in glob(os.path.join(x[0], "*"))]
+    filepaths = filter(os.path.isfile, filepaths)
     total_size = sum([os.path.getsize(filepath) for filepath in filepaths])
 
     return filepaths, total_size
