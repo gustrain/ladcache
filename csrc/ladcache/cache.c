@@ -520,6 +520,7 @@ monitor_loop(void *args)
             LOG(LOG_CRITICAL, "io_uring_queue_init failed in monitor_loop.\n");
         }
     }
+    LOG(LOG_INFO, "io_uring initialized\n");
 
     /* Open the listening socket. */
     int lfd = socket(AF_INET, SOCK_STREAM, 0);
