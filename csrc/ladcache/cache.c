@@ -1120,6 +1120,15 @@ manager_loop(void *args)
     size_t idle_iters = 0;
     uint64_t i = 0;
 
+    /* Initialize the io_uring queues. */
+    for (unsigned j = 0; j < c->n_users; j++) {
+        int status = io_uring_queue_init(c->qdepth, &c->ustates[j].ring, 0);
+        if (status < 0) {
+            LOG(LOG_CRITICAL, "io_uring_queue_init failed.\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+
     /* Loop round-robin through the user ustates and check for pending and
        completed requests that require status queue updates. */
     while (true) {
@@ -1408,14 +1417,6 @@ cache_init(cache_t *c,
         ustate->ready = NULL;
         ustate->done = NULL;
         ustate->cleanup = NULL;
-
-        /* Initialize the io_uring queues. */
-        int status = io_uring_queue_init(queue_depth, &ustate->ring, 0);
-        if (status < 0) {
-            LOG(LOG_CRITICAL, "io_uring_queue_init failed.\n");
-            cache_destroy(c);
-            return status;
-        }
 
         /* Initialize the locks. */
         SPIN_MUST_INIT(&ustate->free_lock);
