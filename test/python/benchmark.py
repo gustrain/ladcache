@@ -52,10 +52,12 @@ def get_all_filepaths(root):
 def integrity(filepath: str, data: bytes):
     with open(filepath, 'rb') as file:
         truth = file.read()
-        for b1, b2 in zip(truth, data):
+        for b1, b2 in zip(data, truth):
             if b1 != b2:
+                print("{} failed (loaded {} != {} wanted)".format(filepath, b1, b2))
                 return False
     
+    print("{} passed integrity check".format(filepath))
     return True
 
 # Load a directory, returning (seconds to load, # bytes loaded).
@@ -114,6 +116,8 @@ def run_benchmark(ctx: ladcache.UserState, queue_depth: int, directory: str, che
     except FileNotFoundError:
         print("Directory \"{}\" does not exist.".format(directory))
         return
+    
+    n_paths = 
     
     # Run the benchmark
     print("Benchmarking \"{}\" ({} files, {} MB)... ".format(directory, len(paths), size / M), end="")
