@@ -1045,7 +1045,7 @@ manager_check_done(cache_t *c, ustate_t *ustate)
         request_t *request = io_uring_cqe_get_data(cqe);
         io_uring_cqe_seen(&ustate->ring, cqe);
 
-        LOG(LOG_DEBUG, "loaded data for \"%s\": ");
+        LOG(LOG_DEBUG, "loaded data for \"%s\": ", request->path);
         for (int i = 0; i < 32; i++) {
             fprintf(stderr, "%hx ", ((uint8_t *) request->_ldata)[i]);
         }
