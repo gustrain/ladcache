@@ -518,7 +518,6 @@ monitor_loop(void *args)
         int status = io_uring_queue_init(c->qdepth, &c->ustates[i].ring, 0);
         if (status < 0) {
             LOG(LOG_CRITICAL, "io_uring_queue_init failed in monitor_loop.\n");
-            exit(EXIT_FAILURE);
         }
     }
 
