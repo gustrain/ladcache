@@ -178,7 +178,13 @@ network_get_message(int fd, message_t **out)
     /* Get the request header. */
     message_t *message = malloc(sizeof(message_t));
     if ((bytes = read(fd, (void *) message, sizeof(message_t))) != sizeof(message_t)) {
-        LOG(LOG_WARNING, "Received a message that was too short (%ld bytes).\n", bytes);
+        free(message);
+        if (bytes < 0) {
+            LOG(LOG_ERROR, "read failed; %s\n", strerror(errno));
+        } else {
+            LOG(LOG_WARNING, "Received a message of invalid length (got %ld bytes, expected %ld bytes).\n", bytes, sizeof(message_t));
+        }
+
         free(message);
         return -EBADMSG;
     }
