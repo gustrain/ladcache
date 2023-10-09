@@ -26,8 +26,6 @@
 #include "../utils/alloc.h"
 #include "../utils/fifo.h"
 #include "../utils/log.h"
-#include <stdlib.h>
-#include <malloc.h>
 #include <stdbool.h>
 #include <pthread.h>
 #include <errno.h>
@@ -906,25 +904,11 @@ manager_submit_io(ustate_t *ustate, request_t *r)
     LOG(LOG_DEBUG, "Loading \"%s\" from storage.\n", r->path);
 
     /* Open the file. */
-    r->_lfd_file = open(r->path, O_RDWR | __O_DIRECT);
+    r->_lfd_file = open(r->path, O_RDONLY | __O_DIRECT);
     if (r->_lfd_file < 0) {
         LOG(LOG_ERROR, "Failed to open \"%s\"; %s\n", r->path, strerror(errno));
         return -errno;
     }
-
-    LOG(LOG_INFO, "_lfd_file (fd = %d) flags = 0x%x\n", r->_lfd_file, fcntl(r->_lfd_file, F_GETFD));
-
-    void *buf;
-    posix_memalign(&buf, 4096, 8192);
-    LOG(LOG_INFO, "poc read with fd = %d, data = %p, size = %lu.\n", r->_lfd_file, buf, 8192lu);
-    ssize_t ret = read(r->_lfd_file, buf, 8192);
-    if (ret < 0) {
-        LOG(LOG_ERROR, "Failed to read; %s\n", strerror(errno));
-        exit(EXIT_FAILURE);
-    } else {
-        LOG(LOG_INFO, "Successfully read 128 bytes.\n");
-    }
-    free(buf);
 
     /* Get the size of the file, rounding the size up to the nearest multiple of
        4KB for O_DIRECT compatibility. */
@@ -946,10 +930,6 @@ manager_submit_io(ustate_t *ustate, request_t *r)
 
     /* Tell io_uring to read the file into the buffer. */
     struct io_uring_sqe *sqe = io_uring_get_sqe(&ustate->ring);
-    LOG(LOG_INFO, "prepping read with fd = %d, data = %p, size = %lu.\n", r->_lfd_file, r->_ldata, r->shm_size);
-    for (size_t i = 0; i < r->shm_size; i++) {
-        ((uint8_t *) r->_ldata)[i];
-    }
     io_uring_prep_read(sqe, r->_lfd_file, r->_ldata, r->shm_size, 0);
     io_uring_sqe_set_data(sqe, r);
     io_uring_submit(&ustate->ring);
@@ -1065,25 +1045,11 @@ manager_check_done(cache_t *c, ustate_t *ustate)
         request_t *request = io_uring_cqe_get_data(cqe);
         io_uring_cqe_seen(&ustate->ring, cqe);
         if (cqe->res < 0) {
-            LOG(LOG_ERROR,
-                    "asynchronous read failed; %s (fd = %d (flags = 0x%x), _lfd_shm = %d (flags = 0x%x), data @ %p (4K aligned? %d), size = 0x%lx (4K aligned? %d)).\n",
-                    strerror(-cqe->res),
-                    request->_lfd_file,
-                    fcntl(request->_lfd_file, F_GETFD),
-                    request->_lfd_shm,
-                    fcntl(request->_lfd_shm, F_GETFD),
-                    request->_ldata,
-                    ((uint64_t) request->_ldata) % 4096 == 0,
-                    request->shm_size,
-                    request->shm_size % 4096 == 0);
+            /* If io_uring's called to read() failed. */
+            LOG(LOG_ERROR, "asynchronous read failed; %s\n", strerror(-cqe->res));
+            request->status = cqe->res;
+            goto skip_cache;
         }
-
-        LOG(LOG_DEBUG, "loaded data for \"%s\": ", request->path);
-        for (int i = 0; i < 32; i++) {
-            fprintf(stderr, "%hx ", ((uint8_t *) request->_ldata)[i]);
-        }
-        fprintf(stderr, "\n");
-
 
         /* Try to cache this file. */
         if (c->lcache.used + request->shm_size <= c->lcache.capacity) {
@@ -1131,16 +1097,6 @@ manager_loop(void *args)
     size_t prev_length;
     size_t idle_iters = 0;
     uint64_t i = 0;
-
-    /* Initialize the io_uring queues. */
-    for (unsigned j = 0; j < c->n_users; j++) {
-        int status = io_uring_queue_init(c->qdepth, &c->ustates[j].ring, 0);
-        if (status < 0) {
-            LOG(LOG_CRITICAL, "io_uring_queue_init failed.\n");
-            exit(EXIT_FAILURE);
-        }
-    }
-    LOG(LOG_INFO, "io_uring initialized\n");
 
     /* Loop round-robin through the user ustates and check for pending and
        completed requests that require status queue updates. */
@@ -1430,6 +1386,14 @@ cache_init(cache_t *c,
         ustate->ready = NULL;
         ustate->done = NULL;
         ustate->cleanup = NULL;
+
+        /* Initialize the io_uring queues. */
+        int status = io_uring_queue_init(c->qdepth, &ustate->ring, 0);
+        if (status < 0) {
+            LOG(LOG_CRITICAL, "io_uring_queue_init failed.\n");
+            cache_destroy(c);
+            return status;
+        }
 
         /* Initialize the locks. */
         SPIN_MUST_INIT(&ustate->free_lock);
