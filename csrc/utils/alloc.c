@@ -92,7 +92,7 @@ shm_alloc(char *name, void **ptr, size_t size)
    }
 
    /* Create the mmap. */
-   *ptr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
+   *ptr = mmap(NULL, size, PROT_WRITE, MAP_SHARED, fd, 0);
    if (*ptr == NULL) {
       shm_unlink(name);
       close(fd);
