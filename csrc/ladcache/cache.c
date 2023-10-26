@@ -1004,6 +1004,8 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
             LOG(LOG_ERROR, "cache_local_load failed; %s\n", strerror(-pending->status));
         }
         assert(pending->path[0] != '\0');
+        assert(pending->shm_size != 0);
+
         QUEUE_PUSH_SAFE(ustate->done, &ustate->done_lock, next, prev, pending);
 
         return 0;
