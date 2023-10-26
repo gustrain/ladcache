@@ -69,7 +69,7 @@
 
 #define CLOSE_DEBUG(fd)                 \
     do {                                \
-        LOG("Closing fd=%d.\n", fd);    \
+        fprintf(stderr, "Closing fd=%d.\n", fd);    \
         close(fd);                      \
     } while (0)
 
