@@ -67,11 +67,14 @@
         }                                                                      \
     } while (0)
 
-#define CLOSE_DEBUG(fd)                 \
-    do {                                \
-        fprintf(stderr, "Closing fd=%d.\n", fd);    \
-        close(fd);                      \
-    } while (0)
+int
+CLOSE_DEBUG(int fd)
+{
+    int status = close(fd);
+    LOG(LOG_WARNING, "Closing fd=%d.\n", fd);
+
+    return status;
+}
 
 /* --------- */
 /*   MISC.   */
