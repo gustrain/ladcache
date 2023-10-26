@@ -1255,6 +1255,10 @@ cache_get_reap(ustate_t *user, request_t **out)
         goto done;
     }
 
+    if (r->shm_size == 0) {
+        LOG(LOG_WARNING, "attempting to reap a request with zero shm_size.\n");
+    }
+
     /* Open the shm object. */
     if ((r->ufd_shm = shm_open(r->shm_path, O_RDONLY, S_IRUSR)) < 0) {
         LOG(LOG_ERROR, "shm_open failed; \"%s\"; %s\n", r->shm_path, strerror(errno));
