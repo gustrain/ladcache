@@ -760,10 +760,6 @@ cache_local_store(lcache_t *lc, char *path, uint8_t *data, size_t size)
     strncpy_s(loc->path, path, MAX_PATH_LEN + 1);
     HASH_ADD_STR(lc->ht, path, loc);
 
-    if (loc->shm_size == 0) {
-        LOG(LOG_WARNING, "zero shm_size detected.\n");
-    }
-
     return 0;
 }
 
@@ -967,14 +963,12 @@ manager_check_cleanup(cache_t *c, ustate_t *ustate)
     if (!to_clean->_skip_clean && !to_clean->status) {
         LOG(LOG_DEBUG, "Deep cleaning \"%s\" entry (%s).\n", to_clean->path, to_clean->shm_path);
         munmap(to_clean->_ldata, to_clean->shm_size);
-        LOG(LOG_WARNING, "Closing _lfd_shm=%d.\n", to_clean->_lfd_file);
         close(to_clean->_lfd_shm);
         shm_unlink(to_clean->shm_path);
 
         /* If we loaded from the remote cache we'll have never opened a local
            file, and so _lfd_file will still be 0. */
         if (to_clean->_lfd_file != 0) {
-            LOG(LOG_WARNING, "Closing _lfd_file=%d.\n", to_clean->_lfd_file);
             close(to_clean->_lfd_file);
         }
     }
@@ -1083,9 +1077,6 @@ manager_check_done(cache_t *c, ustate_t *ustate)
                 .shm_fd = request->_lfd_shm,
                 .shm_size = request->shm_size
             };
-            if (loc->shm_size == 0) {
-                LOG(LOG_WARNING, "zero shm_size detected.\n");
-            }
             strncpy_s(loc->path, request->path, MAX_PATH_LEN + 1);
             strncpy_s(loc->shm_path, request->shm_path, MAX_SHM_PATH_LEN + 1);
 
@@ -1256,10 +1247,6 @@ cache_get_reap(ustate_t *user, request_t **out)
         LOG(LOG_WARNING, "Reaped a failed request for \"%s\"; %s\n", r->path, strerror(-r->status));
         status = r->status;
         goto done;
-    }
-
-    if (r->shm_size == 0) {
-        LOG(LOG_WARNING, "attempting to reap a request with zero shm_size.\n");
     }
 
     /* Open the shm object. */
