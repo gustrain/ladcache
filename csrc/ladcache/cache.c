@@ -760,6 +760,10 @@ cache_local_store(lcache_t *lc, char *path, uint8_t *data, size_t size)
     strncpy_s(loc->path, path, MAX_PATH_LEN + 1);
     HASH_ADD_STR(lc->ht, path, loc);
 
+    if (loc->shm_size == 0) {
+        LOG(LOG_WARNING, "zero shm_size detected.\n");
+    }
+
     return 0;
 }
 
@@ -1076,6 +1080,9 @@ manager_check_done(cache_t *c, ustate_t *ustate)
                 .shm_fd = request->_lfd_shm,
                 .shm_size = request->shm_size
             };
+            if (loc->shm_size == 0) {
+                LOG(LOG_WARNING, "zero shm_size detected.\n");
+            }
             strncpy_s(loc->path, request->path, MAX_PATH_LEN + 1);
             strncpy_s(loc->shm_path, request->shm_path, MAX_SHM_PATH_LEN + 1);
 
