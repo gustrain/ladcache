@@ -782,6 +782,7 @@ cache_local_load(lcache_t *lc, request_t *request)
 
     /* Fill the request. */
     request->size = loc->size;
+    request->shm_size = loc->shm_size;
     request->_ldata = loc->data;
     request->_lfd_shm = loc->shm_fd;
     request->_skip_clean = true; /* Don't purge this entry once we're done with
