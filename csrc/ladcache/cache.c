@@ -70,7 +70,7 @@
 #define CLOSE_DEBUG(fd)                 \
     do {                                \
         LOG("Closing fd=%d.\n", fd);    \
-        close(fd)                       \
+        close(fd);                      \
     } while (0)
 
 /* --------- */
