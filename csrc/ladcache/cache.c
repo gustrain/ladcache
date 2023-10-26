@@ -67,14 +67,6 @@
         }                                                                      \
     } while (0)
 
-int
-CLOSE_DEBUG(int fd)
-{
-    int status = close(fd);
-    LOG(LOG_WARNING, "Closing fd=%d.\n", fd);
-
-    return status;
-}
 
 /* --------- */
 /*   MISC.   */
@@ -167,7 +159,7 @@ network_connect(in_addr_t ip)
     if (connect(peer_fd, (struct sockaddr *) &peer_addr, sizeof(peer_addr)) < 0) {
         /* ISSUE: leaking this request. */
         LOG(LOG_ERROR, "Failed to connect to %s; %s\n", inet_ntoa(peer_addr.sin_addr), strerror(errno));
-        CLOSE_DEBUG(peer_fd);
+        close(peer_fd);
         return -errno;
     }
 
@@ -326,7 +318,7 @@ cache_register(cache_t *c)
         }
     }
 
-    CLOSE_DEBUG(broadcast_fd);
+    close(broadcast_fd);
     return 0;
 }
 
@@ -393,7 +385,7 @@ cache_sync(cache_t *c)
             free(payload);
             return status;
         }
-        CLOSE_DEBUG(peer_fd);
+        close(peer_fd);
     };
     pthread_spin_unlock(&c->peer_lock);
 
@@ -501,7 +493,7 @@ monitor_handle_connection(void *args)
     int status = network_get_message(peer_fd, &message);
     if (status < 0) {
         LOG(LOG_WARNING, "network_get_message failed; %s\n", strerror(-status));
-        CLOSE_DEBUG(peer_fd);
+        close(peer_fd);
         return NULL;
     }
 
@@ -514,7 +506,7 @@ monitor_handle_connection(void *args)
     }
 
     free(message);
-    CLOSE_DEBUG(peer_fd);
+    close(peer_fd);
     return NULL;
 }
 
@@ -706,7 +698,7 @@ registrar_loop(void *args)
     }
 
    fail:
-    CLOSE_DEBUG(sfd);
+    close(sfd);
     return NULL;
 }
 
@@ -857,14 +849,14 @@ cache_remote_load(void *args)
     if (status < 0) {
         LOG(LOG_ERROR, "Failed to send message; %s\n", strerror(-status));
         request->status = status;
-        CLOSE_DEBUG(peer_fd);
+        close(peer_fd);
         goto done;
     }
 
     /* Wait for a response. */
     message_t *response;
     status = network_get_message(peer_fd, &response);
-    CLOSE_DEBUG(peer_fd); /* Socket use finished here. */
+    close(peer_fd); /* Socket use finished here. */
     if (status < 0) {
         LOG(LOG_ERROR, "network_get_message failed; %s\n", strerror(-status));
         request->status = status;
@@ -938,7 +930,7 @@ manager_submit_io(ustate_t *ustate, request_t *r)
     r->_lfd_shm = shm_alloc(r->shm_path, &r->_ldata, r->shm_size);
     if (r->_lfd_shm < 0) {
         LOG(LOG_ERROR, "shm_alloc failed; %s\n", strerror(-r->_lfd_shm));
-        CLOSE_DEBUG(r->_lfd_file);
+        close(r->_lfd_file);
         return r->_lfd_shm;
     }
 
@@ -970,13 +962,15 @@ manager_check_cleanup(cache_t *c, ustate_t *ustate)
     if (!to_clean->_skip_clean && !to_clean->status) {
         LOG(LOG_DEBUG, "Deep cleaning \"%s\" entry (%s).\n", to_clean->path, to_clean->shm_path);
         munmap(to_clean->_ldata, to_clean->shm_size);
-        CLOSE_DEBUG(to_clean->_lfd_shm);
+        LOG(LOG_WARNING, "Closing _lfd_shm=%d.\n", to_clean->_lfd_file);
+        close(to_clean->_lfd_shm);
         shm_unlink(to_clean->shm_path);
 
         /* If we loaded from the remote cache we'll have never opened a local
            file, and so _lfd_file will still be 0. */
         if (to_clean->_lfd_file != 0) {
-            CLOSE_DEBUG(to_clean->_lfd_file);
+            LOG(LOG_WARNING, "Closing _lfd_file=%d.\n", to_clean->_lfd_file);
+            close(to_clean->_lfd_file);
         }
     }
 
@@ -1263,7 +1257,7 @@ cache_get_reap(ustate_t *user, request_t **out)
 
     /* Create the mmap. */
     if ((r->udata = mmap(NULL, r->shm_size, PROT_READ, MAP_PRIVATE, r->ufd_shm, 0)) == (void *) -1LL) {
-        LOG(LOG_ERROR, "mmap failed (fd=%d, size=%lu); %s\n", r->ufd_shm, r->shm_size, strerror(errno));
+        LOG(LOG_ERROR, "mmap failed; %s\n", strerror(errno));
         status = -errno;
         goto done;
     }
@@ -1298,7 +1292,7 @@ cache_release(ustate_t *user, request_t *request)
             LOG(LOG_CRITICAL, "munmap failed; %s\n", strerror(errno));
             exit(EXIT_FAILURE);
         }
-        if (CLOSE_DEBUG(request->ufd_shm)) {
+        if (close(request->ufd_shm)) {
             LOG(LOG_CRITICAL, "close failed; %s\n", strerror(errno));
             exit(EXIT_FAILURE);
         }
@@ -1446,7 +1440,7 @@ cache_init(cache_t *c,
         return -errno;
     }
     ssize_t bytes = read(rfd, &c->random, sizeof(c->random));
-    CLOSE_DEBUG(rfd);
+    close(rfd);
     if (bytes != sizeof(c->random)) {
         LOG(LOG_CRITICAL, "Failed to read randomness from /dev/urandom.\n");
         cache_destroy(c);
