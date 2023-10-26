@@ -214,7 +214,7 @@ UserState_reap(PyObject *self, PyObject *args, PyObject *kwds)
         Py_INCREF(Py_None);
         return Py_None;
     } else if (status < 0) {
-        DEBUG_LOG(SCOPE_INT, LOG_ERROR, "Failed to reap \"%s\"; %s\n", out->path, strerror(-status));
+        DEBUG_LOG(SCOPE_INT, LOG_ERROR, "Failed to reap (wait=%d) \"%s\"; %s\n", wait, out->path, strerror(-status));
         PyErr_Format(PyExc_Exception, strerror(-status));
         return NULL;
     }
