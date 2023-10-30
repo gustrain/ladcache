@@ -173,16 +173,21 @@ static PyTypeObject PythonRequestType = {
 PyObject *
 UserState_submit(PyObject *self, PyObject *args, PyObject *kwds)
 {
+    int retry = 0; /* Retry submitting until we succeed. */
     char *filepath;
 
     /* Parse arguments. */
-    char *kwlist[] = {"filepath", NULL};
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "s", kwlist, &filepath)) {
+    char *kwlist[] = {"filepath", "retry", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "s|p", kwlist, &filepath)) {
         PyErr_SetString(PyExc_Exception, "missing/invalid argument");
         return NULL;
     }
 
-    int status = cache_get_submit(((UserState *) self)->ustate, filepath);
+    /* Submit, possibly retry until succeeding (i.e., until entry available). */
+    int status = -EAGAIN;
+    do {
+        status = cache_get_submit(((UserState *) self)->ustate, filepath);
+    } while (status == -EAGAIN && retry);
     if (status < 0) {
         PyErr_SetString(PyExc_Exception, strerror(-status));
         return status == -ENOENT ? Py_None : NULL; /* ENOENT is tolerable. */
