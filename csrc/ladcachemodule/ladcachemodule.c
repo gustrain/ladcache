@@ -184,7 +184,7 @@ UserState_submit(PyObject *self, PyObject *args, PyObject *kwds)
     }
 
     /* Submit, possibly retry until succeeding (i.e., until entry available). */
-    int status = -EAGAIN;
+    int status;
     do {
         status = cache_get_submit(((UserState *) self)->ustate, filepath);
     } while (status == -EAGAIN && retry);
