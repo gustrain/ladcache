@@ -1134,8 +1134,6 @@ manager_loop(void *args)
             idle_iters = 0;
         } else {
             idle_iters++;
-            if (idle_iters % (8 * 1024 * 1024) == 0) {
-            }
         }
     }
 
