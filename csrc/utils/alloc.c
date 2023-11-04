@@ -93,7 +93,7 @@ shm_alloc(char *name, void **ptr, size_t size)
 
    /* Create the mmap. */
    *ptr = mmap(NULL, size, PROT_WRITE, MAP_SHARED, fd, 0);
-   if (*ptr == NULL) {
+   if (*ptr == NULL || *ptr == MAP_FAILED) {
       shm_unlink(name);
       close(fd);
       DEBUG_LOG(SCOPE_INT, LOG_ERROR, "mmap failed; \"%s\"; %s\n", name, strerror(ENOMEM));
