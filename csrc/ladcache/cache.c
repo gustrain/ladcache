@@ -978,6 +978,7 @@ manager_check_cleanup(cache_t *c, ustate_t *ustate)
 
     /* Move it to the free queue. */
     QUEUE_PUSH_SAFE(ustate->free, &ustate->free_lock, next, prev, to_clean);
+    atomic_fetch_sub(&ustate->in_flight, 1);
 }
 
 /* Check whether USTATE has a pending request and execute it if it does. Returns
@@ -1209,6 +1210,7 @@ cache_get_submit(ustate_t *user, char *path)
 {
     /* Generate request. */
     request_t *request = NULL;
+    atomic_fetch_add(&user->in_flight, 1);
     QUEUE_POP_SAFE(user->free, &user->free_lock, next, prev, request);
     if (request == NULL) {
         LOG(LOG_DEBUG, "Free queue is empty; no request_t structs available.\n");
@@ -1403,6 +1405,10 @@ cache_init(cache_t *c,
             cache_destroy(c);
             return status;
         }
+
+        /* Queue statistics. */
+        ustate->queue_depth = (size_t) queue_depth;
+        atomic_init(&ustate->in_flight, 0);
 
         /* Initialize the locks. */
         SPIN_MUST_INIT(&ustate->free_lock);

@@ -237,6 +237,20 @@ UserState_reap(PyObject *self, PyObject *args, PyObject *kwds)
     return (PyObject *) request;
 }
 
+/* Get the maximum number of concurrent requests. */
+PyObject *
+UserState_get_queue_depth(PyObject *self, PyObject *args, PyObject *kwds)
+{
+    return PyLong_FromUnsignedLong(((UserState *) self)->ustate->queue_depth);
+}
+
+/* Get the number in-flight requests. */
+PyObject *
+UserState_get_in_flight(PyObject *self, PyObject *args, PyObject *kwds)
+{
+    return PyLong_FromUnsignedLong(((UserState *) self)->ustate->in_flight);
+}
+
 /* UserState methods array. */
 static PyMethodDef UserState_methods[] = {
     {
@@ -250,6 +264,18 @@ static PyMethodDef UserState_methods[] = {
         (PyCFunction) UserState_reap,
         METH_VARARGS | METH_KEYWORDS,
         "Reap a request."
+    },
+    {
+        "get_queue_depth",
+        (PyCFunction) UserState_get_queue_depth,
+        METH_NOARGS,
+        "Get the maximum number of concurrent requests."
+    },
+    {
+        "get_in_flight",
+        (PyCFunction) UserState_get_in_flight,
+        METH_NOARGS,
+        "Get the number of in-flight requests."
     }
 };
 
@@ -270,7 +296,7 @@ static PyTypeObject PythonUserStateType = {
 
 
 /* ------------------- */
-/*    `Cache` METHODS    */
+/*   `Cache` METHODS   */
 /* ------------------- */
 
 /* Cache deallocator. */

@@ -200,13 +200,17 @@ typedef struct {
 } rcache_t;
 
 /* User states. Private between users, shared with loader. */
-typedef struct {
+typedef struct {    
     /* Status queues. */
     request_t *head;                /* Only used for teardown. */
     request_t *free;                /* Unused request_t structs. */
     request_t *ready;               /* Ready requests waiting to be executed. */
     request_t *done;                /* Fulfilled requests. */
     request_t *cleanup;             /* Waiting for backend resource cleanup. */
+
+    /* Queue statistics. */
+    size_t        queue_depth;  /* Number of entries initially in FREE. */
+    atomic_size_t in_flight;    /* Number of entries not in FREE. */
 
     /* Asynchronous IO. */
     struct io_uring ring;

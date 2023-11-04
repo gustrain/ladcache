@@ -49,10 +49,6 @@
          return EINVAL;                                                        \
       }                                                                        \
    } while (0)
-#define NOT_REACHED()                                                          \
-    do {                                                                       \
-        assert(false);                                                         \
-    } while (0)
 
 
 /* Mutually exclusive testing modes. */
