@@ -945,16 +945,16 @@ manager_submit_io(ustate_t *ustate, request_t *r)
 }
 
 /* Check whether USTATE has any backend resources to be cleaned up. If resources
-   exist, clean up a single request_t struct per call. Returns 0 on success,
-   -errno on failure. */
-static void
+   exist, clean up a single request_t struct per call. Returns TRUE when a
+   resource was cleaned up, FALSE when there was nothing to clean up. */
+static bool
 manager_check_cleanup(cache_t *c, ustate_t *ustate)
 {
     /* Check if there's anything in the queue. */
     request_t *to_clean = NULL;
     QUEUE_POP_SAFE(ustate->cleanup, &ustate->cleanup_lock, next, prev, to_clean);
     if (to_clean == NULL) {
-        return;
+        return false;
     }
 
     assert(to_clean->path[0] != '\0');
@@ -979,6 +979,8 @@ manager_check_cleanup(cache_t *c, ustate_t *ustate)
     /* Move it to the free queue. */
     QUEUE_PUSH_SAFE(ustate->free, &ustate->free_lock, next, prev, to_clean);
     atomic_fetch_sub(&ustate->in_flight, 1);
+
+    return true;
 }
 
 /* Check whether USTATE has a pending request and execute it if it does. Returns
@@ -1124,9 +1126,13 @@ manager_loop(void *args)
         }
 
         prev_length = c->lcache.n_unsynced;
-        manager_check_cleanup(c, ustate);
         manager_check_ready(c, ustate);
         manager_check_done(c, ustate);
+
+        /* Clean up all entries in this user state. Cleaning only a single entry
+           will cause a significant bottleneck to occur when there the requests
+           are saturated. */
+        while (manager_check_cleanup(c, ustate))
 
         /* Reset the idle count if we've got new unsynced data. Otherwise,
            continue to increment it. */
