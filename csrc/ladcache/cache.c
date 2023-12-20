@@ -1026,7 +1026,10 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
            take care of itself and doesn't require management. */
         pthread_t _;
         int status = pthread_create(&_, NULL, cache_remote_load, args);
-        assert(!status);
+        if (status != 0) {
+            LOG(LOG_CRITICAL, "pthread_create failed; %s; exiting\n", strerror(status));
+            exit(EXIT_FAILURE);
+        }
 
         return 0;
     }
