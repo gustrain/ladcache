@@ -54,7 +54,7 @@
 
 /* Wrapper for pthread_create. Arguments should be of the same type. COUNTER should
    be a pointer to an atomic_size_t counter for the number of active threads. */
-#define PTHREAD_CREATE_DETACHED(pid, attr, func, aux, counter)                                                  \
+#define PTHREAD_CREATE_DETACH(pid, attr, func, aux, counter)                                                  \
     do {                                                                                                        \
         int status = pthread_create(pid, attr, func, aux);                                                      \
         if (status != 0) {                                                                                      \
@@ -584,7 +584,7 @@ monitor_loop(void *args)
             /* This thread will terminate gracefully on its own and we don't
                need to track it. */
             pthread_t _;
-            PTHREAD_CREATE_DETACHED(&_, NULL, monitor_handle_connection, conn_args, &c->n_threads);
+            PTHREAD_CREATE_DETACH(&_, NULL, monitor_handle_connection, conn_args, &c->n_threads);
         }
     }
 
@@ -1048,7 +1048,7 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
         /* Spawn a thread to handling requesting the file from the peer. It will
            take care of itself and doesn't require management. */
         pthread_t _;
-        PTHREAD_CREATE_DETACHED(&_, NULL, cache_remote_load, args, &c->n_threads);
+        PTHREAD_CREATE_DETACH(&_, NULL, cache_remote_load, args, &c->n_threads);
 
         return 0;
     }
