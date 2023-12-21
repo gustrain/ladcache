@@ -566,6 +566,7 @@ monitor_loop(void *args)
             /* This thread will terminate gracefully on its own and we don't
                need to track it. */
             pthread_t _;
+            atomic_fetch_add(&c->n_threads, 1);
             pthread_create(&_, NULL, monitor_handle_connection, conn_args);
         }
     }
@@ -579,6 +580,7 @@ monitor_loop(void *args)
 int
 monitor_spawn(cache_t *c)
 {
+    atomic_fetch_add(&c->n_threads, 1);
     return -pthread_create(&c->monitor_thread, NULL, monitor_loop, c);
 }
 
@@ -706,6 +708,7 @@ registrar_loop(void *args)
 int
 registrar_spawn(cache_t *c)
 {
+    atomic_fetch_add(&c->n_threads, 1);
     return -pthread_create(&c->registrar_thread, NULL, registrar_loop, c);
 }
 
@@ -1025,11 +1028,13 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
         /* Spawn a thread to handling requesting the file from the peer. It will
            take care of itself and doesn't require management. */
         pthread_t _;
+        LOG(LOG_INFO, "Creating a new thread; %lu already exist\n", c->n_threads);
         int status = pthread_create(&_, NULL, cache_remote_load, args);
         if (status != 0) {
-            LOG(LOG_CRITICAL, "pthread_create failed; %s; exiting\n", strerror(status));
+            LOG(LOG_CRITICAL, "pthread_create failed (%lu threads already created); %s; exiting\n", c->n_threads, strerror(status));
             exit(EXIT_FAILURE);
         }
+        atomic_fetch_add(&c->n_threads, 1);
 
         return 0;
     }
@@ -1155,6 +1160,7 @@ manager_loop(void *args)
 int
 manager_spawn(cache_t *c)
 {
+    atomic_fetch_add(&c->n_threads, 1);
     return -pthread_create(&c->manager_thread, NULL, manager_loop, c);
 }
 

@@ -231,6 +231,8 @@ typedef struct {
     uint32_t  qdepth;   /* Queue depth. */
     peer_t   *peers;    /* Iterable hash table of peers. */
 
+    atomic_size_t n_threads; /* debug temp. */
+
     /* Threading info. */
     pthread_t manager_thread;
     pthread_t monitor_thread;
