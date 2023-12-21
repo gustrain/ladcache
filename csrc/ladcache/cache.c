@@ -52,6 +52,22 @@
 #define LOG(level, fmt, ...) DEBUG_LOG(SCOPE_INT, level, fmt, ## __VA_ARGS__)
 #define MIN(a, b) ((a) > (b) ? (a) : (b))
 
+/* Wrapper for pthread_create. Arguments should be of the same type. COUNTER should
+   be a pointer to an atomic_size_t counter for the number of active threads. */
+#define PTHREAD_CREATE_DETACHED(pid, attr, func, aux, counter)                                                  \
+    do {                                                                                                        \
+        int status = pthread_create(pid, attr, func, aux);                                                      \
+        if (status != 0) {                                                                                      \
+            LOG(LOG_CRITICAL, "pthread_create failed; %lu threads exist; %s\n", *counter, strerror(status));    \
+            exit(status);                                                                                       \
+        }                                                                                                       \
+        if ((status = pthread_detach(pid)) != 0) {                                                              \
+            LOG(LOG_CRITICAL, "unable to detach thread %lu; %s\n", pid, strerror(status));                      \
+            exit(status);                                                                                       \
+        }                                                                                                       \
+        atomic_fetch_add(counter, 1);                                                                           \
+    } while (0)
+
 /* Fail if a spin lock does not init*/
 #define SPIN_MUST_INIT(spinlock)                                               \
     do {                                                                       \
@@ -494,6 +510,7 @@ monitor_handle_connection(void *args)
     if (status < 0) {
         LOG(LOG_WARNING, "network_get_message failed; %s\n", strerror(-status));
         close(peer_fd);
+        atomic_fetch_sub(&c->n_threads, 1);
         return NULL;
     }
 
@@ -507,6 +524,7 @@ monitor_handle_connection(void *args)
 
     free(message);
     close(peer_fd);
+    atomic_fetch_sub(&c->n_threads, 1);
     return NULL;
 }
 
@@ -566,8 +584,7 @@ monitor_loop(void *args)
             /* This thread will terminate gracefully on its own and we don't
                need to track it. */
             pthread_t _;
-            atomic_fetch_add(&c->n_threads, 1);
-            pthread_create(&_, NULL, monitor_handle_connection, conn_args);
+            PTHREAD_CREATE_DETACHED(&_, NULL, monitor_handle_connection, conn_args, &c->n_threads);
         }
     }
 
@@ -580,7 +597,6 @@ monitor_loop(void *args)
 int
 monitor_spawn(cache_t *c)
 {
-    atomic_fetch_add(&c->n_threads, 1);
     return -pthread_create(&c->monitor_thread, NULL, monitor_loop, c);
 }
 
@@ -708,7 +724,6 @@ registrar_loop(void *args)
 int
 registrar_spawn(cache_t *c)
 {
-    atomic_fetch_add(&c->n_threads, 1);
     return -pthread_create(&c->registrar_thread, NULL, registrar_loop, c);
 }
 
@@ -807,6 +822,7 @@ cache_remote_contains(rcache_t *rc, char *path)
 
 /* Arguments to cache_remote_load. */
 struct cache_remote_load_args {
+    cache_t   *c;
     rcache_t  *rc;
     ustate_t  *user;
     request_t *request;
@@ -820,9 +836,11 @@ static void *
 cache_remote_load(void *args)
 {
     /* Get the arguments passed to us. */
-    rcache_t *rc = ((struct cache_remote_load_args *) args)->rc;
-    ustate_t *user = ((struct cache_remote_load_args *) args)->user;
-    request_t *request = ((struct cache_remote_load_args *) args)->request;
+    struct cache_remote_load_args *load_args = (struct cache_remote_load_args *) args;
+    cache_t *c = load_args->c;
+    rcache_t *rc = load_args->rc;
+    ustate_t *user = load_args->user;
+    request_t *request = load_args->request;
     free(args);
 
     /* Find who to request the file from. */
@@ -899,6 +917,7 @@ cache_remote_load(void *args)
     assert(request->path[0] != '\0');
     QUEUE_PUSH_SAFE(user->done, &user->done_lock, next, prev, request);
     free(response);
+    atomic_fetch_sub(&c->n_threads, 1);
     return NULL;
 }
 
@@ -1019,6 +1038,7 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
         if (args == NULL) {
             return -ENOMEM;
         }
+        args->c = c;
         args->rc = &c->rcache;
         args->request = pending;
         args->user = ustate;
@@ -1028,13 +1048,7 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
         /* Spawn a thread to handling requesting the file from the peer. It will
            take care of itself and doesn't require management. */
         pthread_t _;
-        LOG(LOG_INFO, "Creating a new thread; %lu already exist\n", c->n_threads);
-        int status = pthread_create(&_, NULL, cache_remote_load, args);
-        if (status != 0) {
-            LOG(LOG_CRITICAL, "pthread_create failed (%lu threads already created); %s; exiting\n", c->n_threads, strerror(status));
-            exit(EXIT_FAILURE);
-        }
-        atomic_fetch_add(&c->n_threads, 1);
+        PTHREAD_CREATE_DETACHED(&_, NULL, cache_remote_load, args, &c->n_threads);
 
         return 0;
     }
@@ -1160,7 +1174,6 @@ manager_loop(void *args)
 int
 manager_spawn(cache_t *c)
 {
-    atomic_fetch_add(&c->n_threads, 1);
     return -pthread_create(&c->manager_thread, NULL, manager_loop, c);
 }
 
