@@ -61,8 +61,8 @@
             LOG(LOG_CRITICAL, "pthread_create failed; %lu threads exist; %s\n", *counter, strerror(status));    \
             exit(status);                                                                                       \
         }                                                                                                       \
-        if ((status = pthread_detach(pid)) != 0) {                                                              \
-            LOG(LOG_CRITICAL, "unable to detach thread %lu; %s\n", pid, strerror(status));                      \
+        if ((status = pthread_detach(*pid)) != 0) {                                                             \
+            LOG(LOG_CRITICAL, "unable to detach thread %lu; %s\n", *pid, strerror(status));                     \
             exit(status);                                                                                       \
         }                                                                                                       \
         atomic_fetch_add(counter, 1);                                                                           \
