@@ -14,9 +14,9 @@
 
 ## Usage
 
-### `ladcache.Cache(capacity: int, queue_depth: int, max_unsynced: Optional[int] = 1, n_users: Optional[int] = 1, debug_limit: Optional[int] = -1)`
+### `ladcache.Cache(capacity: int, queue_depth: int, max_unsynced: Optional[int] = 1, n_users: Optional[int] = 1, debug_limit: Optional[int] = 0)`
 
-Cache with `capacity` bytes of capacity, capable of handling `queue_depth` load requests in parallel. Allows at most `max_unsynced` files to be cached prior to syncing with peers, but will also sync after a short period without having cached any new files as long as there is at least a single uncached file. Supports up to `n_users` users in parallel, which each interact with the cache via a `ladcache.UserState` object obtained by calling `Cache.get_user_state(i)`, for the `i`th user. The `debug_limit` creates an artifical bottleneck for io_uring, and allows only `debug_limit` concurrent requests per-user. Negative values indicate no limit.
+Cache with `capacity` bytes of capacity, capable of handling `queue_depth` load requests in parallel. Allows at most `max_unsynced` files to be cached prior to syncing with peers, but will also sync after a short period without having cached any new files as long as there is at least a single uncached file. Supports up to `n_users` users in parallel, which each interact with the cache via a `ladcache.UserState` object obtained by calling `Cache.get_user_state(i)`, for the `i`th user. The `debug_limit` creates an artifical bottleneck and allows only `debug_limit` concurrent requests to be fulfilled by io_uring per-user. `debug_limit=0` indicates no limit.
 
 #### `Cache.get_user_state(id: int)`
 

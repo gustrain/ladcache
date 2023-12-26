@@ -213,7 +213,10 @@ typedef struct {
     atomic_size_t in_flight;    /* Number of entries not in FREE. */
 
     /* Debug parameters. */
-    int debug_limit;  /* Maximum number of in-flight entries. Negative iff no limit. */
+    int        debug_count;     /* In-flight io_uring entries. */
+    int        debug_limit;     /* Max DEBUG_COUNT value. 0 = no limit. */
+    request_t *bottleneck;      /* Requests that should be processed, but are
+                                   bottlenecked by DEBUG_LIMIT. */
 
     /* Asynchronous IO. */
     struct io_uring ring;

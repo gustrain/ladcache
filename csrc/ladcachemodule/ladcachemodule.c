@@ -315,7 +315,7 @@ Cache_init(PyObject *self, PyObject *args, PyObject *kwds)
     Cache *c = (Cache *) self;
     size_t capacity;
     int queue_depth;
-    int max_unsynced = 1, n_users = 1, debug_limit = -1; /* Default values (optionals). */
+    int max_unsynced = 1, n_users = 1, debug_limit = 0; /* Default values (optionals). */
 
     /* Parse arguments. */
     char *kwlist[] = {
@@ -338,6 +338,7 @@ Cache_init(PyObject *self, PyObject *args, PyObject *kwds)
     ARG_CHECK(capacity > 0, "capacity must be >= 1 byte", -1);
     ARG_CHECK(queue_depth > 0, "queue_depth must be > 0", -1);
     ARG_CHECK(max_unsynced >= 0, "max_unsynced must be >= 0", -1);
+    ARG_CHECK(debug_limit > 0, "debug_limit must be > 0", -1);
     ARG_CHECK(n_users > 0, "n_users must be > 0", -1);
 
     /* Allocate the cache_t struct. */

@@ -1006,11 +1006,20 @@ manager_check_cleanup(cache_t *c, ustate_t *ustate)
 static int
 manager_check_ready(cache_t *c, ustate_t *ustate)
 {
-    /* Check if there's a request waiting in the ready queue. */
     request_t *pending = NULL;
-    QUEUE_POP_SAFE(ustate->ready, &ustate->ready_lock, next, prev, pending);
+
+    /* Bottleneck is a debug setting. Process bottlenecked requests must be
+       processed first to maintain FIFO order. */
+    if (ustate->debug_count < ustate->debug_limit) {
+        QUEUE_POP(ustate->bottleneck, next, prev, pending);
+    }
+
+    /* Pop from the regular queue if not processing a bottlenecked request. */
     if (pending == NULL) {
-        return 0;
+        QUEUE_POP_SAFE(ustate->ready, &ustate->ready_lock, next, prev, pending);
+        if (pending == NULL) {
+            return 0;
+        }
     }
 
     /* Check the local cache. */
@@ -1049,7 +1058,13 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
         return 0;
     }
 
-    /* If not cached, issue IO. */
+    /* File neither cached remotely nor locally. Unless DEBUG_LIMIT enabled,
+       submit this request to be loaded locally via io_uring. */
+    if (ustate->debug_count >= ustate->debug_limit) {
+        QUEUE_PUSH(ustate->bottleneck, next, prev, pending);
+        return 0;
+    }
+
     int status = manager_submit_io(ustate, pending);
     if (status < 0) {
         pending->status = status;
@@ -1058,6 +1073,7 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
         LOG(LOG_ERROR, "manager_submit_io failed; %s\n", strerror(-status));
         return status;
     }
+    ustate->debug_count++;
 
     return 0;
 }
@@ -1074,6 +1090,7 @@ manager_check_done(cache_t *c, ustate_t *ustate)
     while (!io_uring_peek_cqe(&ustate->ring, &cqe)) {
         request_t *request = io_uring_cqe_get_data(cqe);
         io_uring_cqe_seen(&ustate->ring, cqe);
+        ustate->debug_limit--;
         if (cqe->res < 0) {
             /* If io_uring's called to read() failed. */
             LOG(LOG_ERROR, "asynchronous read failed; %s\n", strerror(-cqe->res));
@@ -1420,6 +1437,8 @@ cache_init(cache_t *c,
         ustate->ready = NULL;
         ustate->done = NULL;
         ustate->cleanup = NULL;
+        ustate->bottleneck = NULL;
+        ustate->debug_count = 0;
 
         /* Initialize the io_uring queues. */
         int status = io_uring_queue_init(c->qdepth, &ustate->ring, 0);
