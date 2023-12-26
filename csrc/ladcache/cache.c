@@ -54,7 +54,7 @@
 
 /* Wrapper for pthread_create. Arguments should be of the same type. COUNTER should
    be a pointer to an atomic_size_t counter for the number of active threads. */
-#define PTHREAD_CREATE_DETACH(pid, attr, func, aux, counter)                                                  \
+#define PTHREAD_CREATE_DETACH(pid, attr, func, aux)                                                             \
     do {                                                                                                        \
         int status = pthread_create(pid, attr, func, aux);                                                      \
         if (status != 0) {                                                                                      \
@@ -65,7 +65,6 @@
             LOG(LOG_CRITICAL, "unable to detach thread %lu; %s\n", *pid, strerror(status));                     \
             exit(status);                                                                                       \
         }                                                                                                       \
-        atomic_fetch_add(counter, 1);                                                                           \
     } while (0)
 
 /* Fail if a spin lock does not init*/
@@ -510,7 +509,6 @@ monitor_handle_connection(void *args)
     if (status < 0) {
         LOG(LOG_WARNING, "network_get_message failed; %s\n", strerror(-status));
         close(peer_fd);
-        atomic_fetch_sub(&c->n_threads, 1);
         return NULL;
     }
 
@@ -524,7 +522,6 @@ monitor_handle_connection(void *args)
 
     free(message);
     close(peer_fd);
-    atomic_fetch_sub(&c->n_threads, 1);
     return NULL;
 }
 
@@ -584,7 +581,7 @@ monitor_loop(void *args)
             /* This thread will terminate gracefully on its own and we don't
                need to track it. */
             pthread_t _;
-            PTHREAD_CREATE_DETACH(&_, NULL, monitor_handle_connection, conn_args, &c->n_threads);
+            PTHREAD_CREATE_DETACH(&_, NULL, monitor_handle_connection, conn_args);
         }
     }
 
@@ -917,7 +914,6 @@ cache_remote_load(void *args)
     assert(request->path[0] != '\0');
     QUEUE_PUSH_SAFE(user->done, &user->done_lock, next, prev, request);
     free(response);
-    atomic_fetch_sub(&c->n_threads, 1);
     return NULL;
 }
 
@@ -1048,7 +1044,7 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
         /* Spawn a thread to handling requesting the file from the peer. It will
            take care of itself and doesn't require management. */
         pthread_t _;
-        PTHREAD_CREATE_DETACH(&_, NULL, cache_remote_load, args, &c->n_threads);
+        PTHREAD_CREATE_DETACH(&_, NULL, cache_remote_load, args);
 
         return 0;
     }
