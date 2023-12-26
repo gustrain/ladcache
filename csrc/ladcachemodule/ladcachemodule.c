@@ -330,7 +330,7 @@ Cache_init(PyObject *self, PyObject *args, PyObject *kwds)
                                                 &capacity,
                                                 &queue_depth,
                                                 &max_unsynced,
-                                                &n_users
+                                                &n_users,
                                                 &debug_limit)) {
         PyErr_SetString(PyExc_Exception, "missing/invalid argument");
         return -1;
