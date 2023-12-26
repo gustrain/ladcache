@@ -54,17 +54,17 @@
 
 /* Wrapper for pthread_create. Arguments should be of the same type. COUNTER should
    be a pointer to an atomic_size_t counter for the number of active threads. */
-#define PTHREAD_CREATE_DETACH(pid, attr, func, aux)                                                             \
-    do {                                                                                                        \
-        int status = pthread_create(pid, attr, func, aux);                                                      \
-        if (status != 0) {                                                                                      \
-            LOG(LOG_CRITICAL, "pthread_create failed; %lu threads exist; %s\n", *counter, strerror(status));    \
-            exit(status);                                                                                       \
-        }                                                                                                       \
-        if ((status = pthread_detach(*pid)) != 0) {                                                             \
-            LOG(LOG_CRITICAL, "unable to detach thread %lu; %s\n", *pid, strerror(status));                     \
-            exit(status);                                                                                       \
-        }                                                                                                       \
+#define PTHREAD_CREATE_DETACH(pid, attr, func, aux)                                                \
+    do {                                                                                           \
+        int status = pthread_create(pid, attr, func, aux);                                         \
+        if (status != 0) {                                                                         \
+            LOG(LOG_CRITICAL, "pthread_create failed.\n", strerror(status));                       \
+            exit(status);                                                                          \
+        }                                                                                          \
+        if ((status = pthread_detach(*pid)) != 0) {                                                \
+            LOG(LOG_CRITICAL, "unable to detach thread %lu; %s\n", *pid, strerror(status));        \
+            exit(status);                                                                          \
+        }                                                                                          \
     } while (0)
 
 /* Fail if a spin lock does not init*/
@@ -834,7 +834,6 @@ cache_remote_load(void *args)
 {
     /* Get the arguments passed to us. */
     struct cache_remote_load_args *load_args = (struct cache_remote_load_args *) args;
-    cache_t *c = load_args->c;
     rcache_t *rc = load_args->rc;
     ustate_t *user = load_args->user;
     request_t *request = load_args->request;
