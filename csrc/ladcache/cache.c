@@ -58,7 +58,7 @@
     do {                                                                                           \
         int status = pthread_create(pid, attr, func, aux);                                         \
         if (status != 0) {                                                                         \
-            LOG(LOG_CRITICAL, "pthread_create failed.\n", strerror(status));                       \
+            LOG(LOG_CRITICAL, "pthread_create failed; %s\n", strerror(status));                    \
             exit(status);                                                                          \
         }                                                                                          \
         if ((status = pthread_detach(*pid)) != 0) {                                                \
