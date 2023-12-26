@@ -133,13 +133,15 @@ def run_benchmark(ctx: ladcache.UserState, queue_depth: int, directory: str, che
 parser = argparse.ArgumentParser(description="ladcache benchmark")
 parser.add_argument("-i", "--integrity", default=False, type=bool,
                     help="Check integrity of loaded files. Local and remote files must be identical.")
+parser.add_argument("-b", "--bottleneck", default=0, type=int,
+                    help="Artificial bottleneck for debugging. 0 = no bottleneck.")
 
 def main():
     np.random.seed(42)
     args = parser.parse_args()
 
     # Create a very large cache to allow everything to be loaded.
-    cache = ladcache.Cache(CAPACITY, QUEUE_DEPTH, MAX_UNSYNCED, N_USERS)
+    cache = ladcache.Cache(CAPACITY, QUEUE_DEPTH, MAX_UNSYNCED, N_USERS, args.bottleneck)
     cache.spawn_process()
     ctx = cache.get_user_state(0)
 
