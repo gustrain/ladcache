@@ -1374,6 +1374,7 @@ cache_destroy(cache_t *c)
 int
 cache_init(cache_t *c,
            size_t capacity,
+           int debug_limit,
            int queue_depth,
            int max_unsynced,
            int n_users)
@@ -1430,6 +1431,7 @@ cache_init(cache_t *c,
 
         /* Queue statistics. */
         ustate->queue_depth = (size_t) queue_depth;
+        ustate->debug_limit = debug_limit;
         atomic_init(&ustate->in_flight, 0);
 
         /* Initialize the locks. */

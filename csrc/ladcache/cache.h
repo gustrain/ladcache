@@ -212,6 +212,9 @@ typedef struct {
     size_t        queue_depth;  /* Number of entries initially in FREE. */
     atomic_size_t in_flight;    /* Number of entries not in FREE. */
 
+    /* Debug parameters. */
+    int debug_limit;  /* Maximum number of in-flight entries. Negative iff no limit. */
+
     /* Asynchronous IO. */
     struct io_uring ring;
 
@@ -246,7 +249,7 @@ typedef struct {
 /* Creation/destruction methods. */
 cache_t *cache_new(void);
 void cache_destroy(cache_t *c);
-int cache_init(cache_t *c, size_t capacity, int queue_depth, int max_unsynced, int n_users);
+int cache_init(cache_t *c, size_t capacity, int debug_limit, int queue_depth, int max_unsynced, int n_users);
 
 /* Thread management methods. */
 int manager_spawn(cache_t *c);

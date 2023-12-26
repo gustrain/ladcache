@@ -314,8 +314,8 @@ Cache_init(PyObject *self, PyObject *args, PyObject *kwds)
 {
     Cache *c = (Cache *) self;
     size_t capacity;
-    uint32_t queue_depth;
-    uint32_t max_unsynced = 1, n_users = 1;
+    int queue_depth;
+    int max_unsynced = 1, n_users = 1, debug_limit = -1; /* Default values (optionals). */
 
     /* Parse arguments. */
     char *kwlist[] = {
@@ -323,21 +323,22 @@ Cache_init(PyObject *self, PyObject *args, PyObject *kwds)
         "queue_depth",
         "max_unsynced",
         "n_users",
+        "debug_limit",
         NULL
     };
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "kI|II", kwlist,
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "ki|iii", kwlist,
                                                 &capacity,
                                                 &queue_depth,
                                                 &max_unsynced,
-                                                &n_users)) {
+                                                &n_users
+                                                &debug_limit)) {
         PyErr_SetString(PyExc_Exception, "missing/invalid argument");
         return -1;
     }
-
-    /* Validate arguments. Note that 0 is a valid value for max_unsynced. */
     ARG_CHECK(capacity > 0, "capacity must be >= 1 byte", -1);
-    ARG_CHECK(queue_depth > 0, "queue_depth must be >= 1", -1);
-    ARG_CHECK(n_users > 0, "n_users must be >= 1", -1);
+    ARG_CHECK(queue_depth > 0, "queue_depth must be > 0", -1);
+    ARG_CHECK(max_unsynced >= 0, "max_unsynced must be >= 0", -1);
+    ARG_CHECK(n_users > 0, "n_users must be > 0", -1);
 
     /* Allocate the cache_t struct. */
     if ((c->cache = cache_new()) == NULL) {
@@ -347,10 +348,11 @@ Cache_init(PyObject *self, PyObject *args, PyObject *kwds)
 
     /* Initialize the cache. */
     int status = cache_init(c->cache,
-                                    capacity,
-                                    queue_depth,
-                                    max_unsynced,
-                                    n_users);
+                            capacity,
+                            debug_limit,
+                            queue_depth,
+                            max_unsynced,
+                            n_users);
     if (status < 0) {
         PyErr_Format(PyExc_Exception,
                          "Failed to initialize cache; %s\n",
