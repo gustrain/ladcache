@@ -1438,7 +1438,6 @@ cache_init(cache_t *c,
         ustate->done = NULL;
         ustate->cleanup = NULL;
         ustate->bottleneck = NULL;
-        ustate->debug_count = 0;
 
         /* Initialize the io_uring queues. */
         int status = io_uring_queue_init(c->qdepth, &ustate->ring, 0);
@@ -1450,6 +1449,7 @@ cache_init(cache_t *c,
 
         /* Queue statistics. */
         ustate->queue_depth = (size_t) queue_depth;
+        ustate->debug_count = 0;
         ustate->debug_limit = debug_limit;
         atomic_init(&ustate->in_flight, 0);
 
