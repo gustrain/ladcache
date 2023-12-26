@@ -140,6 +140,9 @@ def main():
     np.random.seed(42)
     args = parser.parse_args()
 
+    if (args.bottleneck != 0):
+        print("Using debug_limit bottleneck of {} requests".format(args.bottleneck))
+
     # Create a very large cache to allow everything to be loaded.
     cache = ladcache.Cache(CAPACITY, QUEUE_DEPTH, MAX_UNSYNCED, N_USERS, args.bottleneck)
     cache.spawn_process()
