@@ -48,6 +48,7 @@
 #define MAX_QUEUE_REQUESTS 64   /* Maximum number of queued network requests. */
 #define SOCKET_TIMEOUT_S (5)    /* Registrar loop socket timeout. */
 #define REGISTER_PERIOD_S (5)   /* Registrar loop broadcast period. */
+#define OFF (0)
 
 #define LOG(level, fmt, ...) DEBUG_LOG(SCOPE_INT, level, fmt, ## __VA_ARGS__)
 #define MIN(a, b) ((a) > (b) ? (a) : (b))
@@ -1009,7 +1010,7 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
 
     /* Bottleneck is a debug setting. Process bottlenecked requests must be
        processed first to maintain FIFO order. */
-    if (ustate->debug_count < ustate->debug_limit) {
+    if (ustate->debug_limit != OFF && ustate->debug_count < ustate->debug_limit) {
         QUEUE_POP(ustate->bottleneck, next, prev, pending);
     }
 
@@ -1059,7 +1060,7 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
 
     /* File neither cached remotely nor locally. Unless DEBUG_LIMIT enabled,
        submit this request to be loaded locally via io_uring. */
-    if (ustate->debug_count >= ustate->debug_limit) {
+    if (ustate->debug_limit != OFF && ustate->debug_count >= ustate->debug_limit) {
         QUEUE_PUSH(ustate->bottleneck, next, prev, pending);
         return 0;
     }
@@ -1089,7 +1090,7 @@ manager_check_done(cache_t *c, ustate_t *ustate)
     while (!io_uring_peek_cqe(&ustate->ring, &cqe)) {
         request_t *request = io_uring_cqe_get_data(cqe);
         io_uring_cqe_seen(&ustate->ring, cqe);
-        ustate->debug_limit--;
+        ustate->debug_count--;
         if (cqe->res < 0) {
             /* If io_uring's called to read() failed. */
             LOG(LOG_ERROR, "asynchronous read failed; %s\n", strerror(-cqe->res));
