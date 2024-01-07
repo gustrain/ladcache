@@ -45,7 +45,7 @@
 #include <sched.h>
 
 #define PORT_DEFAULT (8080)       /* Default port for TCP and UDP connections. */
-#define MAX_QUEUE_REQUESTS (1024) /* Maximum number of queued network requests. */
+#define MAX_QUEUE_REQUESTS (4096) /* Maximum number of queued network requests. */
 #define SOCKET_TIMEOUT_S (5)      /* Registrar loop socket timeout. */
 #define REGISTER_PERIOD_S (5)     /* Registrar loop broadcast period. */
 #define OFF (0)
@@ -272,7 +272,8 @@ network_send_message(mtype_t type, int flags, const void *data, uint32_t size, i
             LOG(LOG_ERROR, "Failed to send payload; %s\n", strerror(errno));
             return -errno;
         } else {
-            LOG(LOG_ERROR, "Failed to send entire payload (%ld/%u bytes sent).\n", bytes, size);
+            LOG(LOG_ERROR, "Failed to send entire payload (%ld/%u bytes sent) MAX_QUEUE_REQUESTS = %d.\n",
+                bytes, size, MAX_QUEUE_REQUESTS);
             return -EAGAIN;
         }
     }
