@@ -263,11 +263,11 @@ network_send_message(mtype_t type, int flags, const void *data, uint32_t size, i
         }
     }
     
-    /* Send the data. Stop sending when all bytes send, or we fail to send. */
+    /* Send the data. Stop sending once all sent, or on failure to send. */
     bytes = 0;
     ssize_t temp;
-    while ((temp = send(fd, data + bytes, size, 0)) > 0 && bytes != size) {
-        bytes += temp;
+    while ((temp = send(fd, data + bytes, size, 0)) > 0 && (bytes += temp) != size) {
+        fprintf(stderr, "Just sent %ld bytes. Total: %ld/%u\n", temp, bytes, size);
     }
 
     if (bytes != size) {
