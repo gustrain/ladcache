@@ -270,7 +270,7 @@ network_send_message(mtype_t type, int flags, const void *data, uint32_t size, i
         fprintf(stderr, "Just sent %ld bytes. Total: %ld/%u\n", temp, bytes, size);
     }
 
-    fprintf(stderr, "Finished sending; temp = %ld, bytes = %ld, size = %u, bytes == size = %d\n", temp, bytes, size, bytes == size);
+    fprintf(stderr, "Finished sending; temp = %ld (errno = %d ; %s) bytes = %ld, size = %u, bytes == size = %d\n", temp, errno, strerr(errno), bytes, size, bytes == size);
 
     if (bytes != size) {
         if (bytes < 0) {
