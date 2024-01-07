@@ -44,11 +44,10 @@
 #include <fcntl.h>
 #include <sched.h>
 
-#define PORT_DEFAULT (8080)     /* Default port for TCP and UDP connections. */
-#define MAX_QUEUE_REQUESTS (256) /* Maximum number of queued network requests. */
-// #define NET_REQ_POOL_SIZE (32)
-#define SOCKET_TIMEOUT_S (5)    /* Registrar loop socket timeout. */
-#define REGISTER_PERIOD_S (5)   /* Registrar loop broadcast period. */
+#define PORT_DEFAULT (8080)       /* Default port for TCP and UDP connections. */
+#define MAX_QUEUE_REQUESTS (1024) /* Maximum number of queued network requests. */
+#define SOCKET_TIMEOUT_S (5)      /* Registrar loop socket timeout. */
+#define REGISTER_PERIOD_S (5)     /* Registrar loop broadcast period. */
 #define OFF (0)
 
 #define LOG(level, fmt, ...) DEBUG_LOG(SCOPE_INT, level, fmt, ## __VA_ARGS__)
@@ -267,14 +266,9 @@ network_send_message(mtype_t type, int flags, const void *data, uint32_t size, i
     /* Send the data. Stop sending once all sent, or on failure to send. */
     bytes = 0;
     ssize_t temp;
-    while ((temp = send(fd, data + bytes, size, 0)) > 0 && (bytes += temp) != size) {
-        fprintf(stderr, "Just sent %ld bytes. Total: %ld/%u\n", temp, bytes, size);
-    }
-
-    fprintf(stderr, "Finished sending; temp = %ld (errno = %d ; %s) bytes = %ld, size = %u, bytes == size = %d\n", temp, errno, strerror(errno), bytes, size, bytes == size);
-
+    while ((temp = send(fd, data + bytes, size, 0)) > 0 && (bytes += temp) != size) {}
     if (bytes != size) {
-        if (bytes < 0) {
+        if (temp < 0) {
             LOG(LOG_ERROR, "Failed to send payload; %s\n", strerror(errno));
             return -errno;
         } else {
