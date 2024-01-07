@@ -194,7 +194,6 @@ network_get_message(int fd, message_t **out)
     /* Get the request header. */
     message_t *message = malloc(sizeof(message_t));
     if ((bytes = read(fd, (void *) message, sizeof(message_t))) != sizeof(message_t)) {
-        free(message);
         if (bytes < 0) {
             LOG(LOG_ERROR, "read failed; %s\n", strerror(errno));
         } else {
