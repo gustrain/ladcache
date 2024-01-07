@@ -45,7 +45,8 @@
 #include <sched.h>
 
 #define PORT_DEFAULT (8080)     /* Default port for TCP and UDP connections. */
-#define MAX_QUEUE_REQUESTS 64   /* Maximum number of queued network requests. */
+#define MAX_QUEUE_REQUESTS (256) /* Maximum number of queued network requests. */
+// #define NET_REQ_POOL_SIZE (32)
 #define SOCKET_TIMEOUT_S (5)    /* Registrar loop socket timeout. */
 #define REGISTER_PERIOD_S (5)   /* Registrar loop broadcast period. */
 #define OFF (0)
