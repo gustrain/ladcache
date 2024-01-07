@@ -263,8 +263,14 @@ network_send_message(mtype_t type, int flags, const void *data, uint32_t size, i
         }
     }
     
-    /* Send the data. */
-    if ((bytes = send(fd, data, size, 0)) != size) {
+    /* Send the data. Stop sending when all bytes send, or we fail to send. */
+    bytes = 0;
+    ssize_t temp;
+    while ((temp = send(fd, data + bytes, size, 0)) > 0 && bytes != size) {
+        bytes += temp;
+    }
+
+    if (bytes != size) {
         if (bytes < 0) {
             LOG(LOG_ERROR, "Failed to send payload; %s\n", strerror(errno));
             return -errno;
