@@ -173,16 +173,21 @@ static PyTypeObject PythonRequestType = {
 PyObject *
 UserState_submit(PyObject *self, PyObject *args, PyObject *kwds)
 {
+    int retry = 0; /* Retry submitting until we succeed. */
     char *filepath;
 
     /* Parse arguments. */
-    char *kwlist[] = {"filepath", NULL};
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "s", kwlist, &filepath)) {
+    char *kwlist[] = {"filepath", "retry", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "s|p", kwlist, &filepath)) {
         PyErr_SetString(PyExc_Exception, "missing/invalid argument");
         return NULL;
     }
 
-    int status = cache_get_submit(((UserState *) self)->ustate, filepath);
+    /* Submit, possibly retry until succeeding (i.e., until entry available). */
+    int status;
+    do {
+        status = cache_get_submit(((UserState *) self)->ustate, filepath);
+    } while (status == -EAGAIN && retry);
     if (status < 0) {
         PyErr_SetString(PyExc_Exception, strerror(-status));
         return status == -ENOENT ? Py_None : NULL; /* ENOENT is tolerable. */
@@ -214,7 +219,7 @@ UserState_reap(PyObject *self, PyObject *args, PyObject *kwds)
         Py_INCREF(Py_None);
         return Py_None;
     } else if (status < 0) {
-        DEBUG_LOG(SCOPE_INT, LOG_ERROR, "Failed to reap \"%s\"; %s\n", out->path, strerror(-status));
+        DEBUG_LOG(SCOPE_INT, LOG_ERROR, "Failed to reap (wait=%d) \"%s\"; %s\n", wait, out->path, strerror(-status));
         PyErr_Format(PyExc_Exception, strerror(-status));
         return NULL;
     }
@@ -232,6 +237,20 @@ UserState_reap(PyObject *self, PyObject *args, PyObject *kwds)
     return (PyObject *) request;
 }
 
+/* Get the maximum number of concurrent requests. */
+PyObject *
+UserState_get_queue_depth(PyObject *self, PyObject *args, PyObject *kwds)
+{
+    return PyLong_FromUnsignedLong(((UserState *) self)->ustate->queue_depth);
+}
+
+/* Get the number in-flight requests. */
+PyObject *
+UserState_get_in_flight(PyObject *self, PyObject *args, PyObject *kwds)
+{
+    return PyLong_FromUnsignedLong(((UserState *) self)->ustate->in_flight);
+}
+
 /* UserState methods array. */
 static PyMethodDef UserState_methods[] = {
     {
@@ -245,6 +264,18 @@ static PyMethodDef UserState_methods[] = {
         (PyCFunction) UserState_reap,
         METH_VARARGS | METH_KEYWORDS,
         "Reap a request."
+    },
+    {
+        "get_queue_depth",
+        (PyCFunction) UserState_get_queue_depth,
+        METH_NOARGS,
+        "Get the maximum number of concurrent requests."
+    },
+    {
+        "get_in_flight",
+        (PyCFunction) UserState_get_in_flight,
+        METH_NOARGS,
+        "Get the number of in-flight requests."
     }
 };
 
@@ -265,7 +296,7 @@ static PyTypeObject PythonUserStateType = {
 
 
 /* ------------------- */
-/*    `Cache` METHODS    */
+/*   `Cache` METHODS   */
 /* ------------------- */
 
 /* Cache deallocator. */
@@ -283,8 +314,8 @@ Cache_init(PyObject *self, PyObject *args, PyObject *kwds)
 {
     Cache *c = (Cache *) self;
     size_t capacity;
-    uint32_t queue_depth;
-    uint32_t max_unsynced = 1, n_users = 1;
+    int queue_depth;
+    int max_unsynced = 1, n_users = 1, debug_limit = 0; /* Default values (optionals). */
 
     /* Parse arguments. */
     char *kwlist[] = {
@@ -292,21 +323,23 @@ Cache_init(PyObject *self, PyObject *args, PyObject *kwds)
         "queue_depth",
         "max_unsynced",
         "n_users",
+        "debug_limit",
         NULL
     };
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "kI|II", kwlist,
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "ki|iii", kwlist,
                                                 &capacity,
                                                 &queue_depth,
                                                 &max_unsynced,
-                                                &n_users)) {
+                                                &n_users,
+                                                &debug_limit)) {
         PyErr_SetString(PyExc_Exception, "missing/invalid argument");
         return -1;
     }
-
-    /* Validate arguments. Note that 0 is a valid value for max_unsynced. */
     ARG_CHECK(capacity > 0, "capacity must be >= 1 byte", -1);
-    ARG_CHECK(queue_depth > 0, "queue_depth must be >= 1", -1);
-    ARG_CHECK(n_users > 0, "n_users must be >= 1", -1);
+    ARG_CHECK(queue_depth > 0, "queue_depth must be > 0", -1);
+    ARG_CHECK(debug_limit >= 0, "debug_limit must be >= 0", -1);
+    ARG_CHECK(max_unsynced >= 0, "max_unsynced must be >= 0", -1);
+    ARG_CHECK(n_users >= 0, "n_users must be >= 0", -1);
 
     /* Allocate the cache_t struct. */
     if ((c->cache = cache_new()) == NULL) {
@@ -316,10 +349,11 @@ Cache_init(PyObject *self, PyObject *args, PyObject *kwds)
 
     /* Initialize the cache. */
     int status = cache_init(c->cache,
-                                    capacity,
-                                    queue_depth,
-                                    max_unsynced,
-                                    n_users);
+                            capacity,
+                            debug_limit,
+                            queue_depth,
+                            max_unsynced,
+                            n_users);
     if (status < 0) {
         PyErr_Format(PyExc_Exception,
                          "Failed to initialize cache; %s\n",

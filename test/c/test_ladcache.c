@@ -49,10 +49,6 @@
          return EINVAL;                                                        \
       }                                                                        \
    } while (0)
-#define NOT_REACHED()                                                          \
-    do {                                                                       \
-        assert(false);                                                         \
-    } while (0)
 
 
 /* Mutually exclusive testing modes. */
@@ -129,11 +125,12 @@ main(int argc, char **argv)
 {
    int opt;
    enum test_mode mode = MODE_NONE;
+   int debug_limit = 0;
    char *path;
    int status;
 
    /* Parse arguments. */
-   while ((opt = getopt(argc, argv, ":id:c:")) != -1) {
+   while ((opt = getopt(argc, argv, ":id:cb:")) != -1) {
       switch (opt) {
          case 'd': /* Directory mode. */
             CHECK_ARG_MUTEX(mode);
@@ -146,15 +143,19 @@ main(int argc, char **argv)
             LOG(LOG_INFO, "Interactive mode...\n");
             mode = MODE_INTERACTIVE;
             break;
+         case 'b':
+            debug_limit = atoi(optarg);
+            LOG(LOG_INFO, "Debug limit (bottleneck) set as %d requests.\n", debug_limit);
+            break;
          case '?':
-            LOG(LOG_WARNING, "Unknown option: %c\n", optopt);
+            LOG(LOG_WARNING, "Unknown option: %c.\n", optopt);
             break;
       }
    }
 
    /* Create the cache. */
    cache_t *cache = cache_new();
-   if ((status = cache_init(cache, DEFAULT_CAPACITY, DEFAULT_QDEPTH, DEFAULT_MAX_UNSYNCED, DEFAULT_USERS)) < 0) {
+   if ((status = cache_init(cache, DEFAULT_CAPACITY, 0, DEFAULT_QDEPTH, DEFAULT_MAX_UNSYNCED, DEFAULT_USERS)) < 0) {
       LOG(LOG_CRITICAL, "cache_init failed; %s\n", strerror(-status));
       return -status;
    }

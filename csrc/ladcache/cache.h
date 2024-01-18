@@ -200,13 +200,23 @@ typedef struct {
 } rcache_t;
 
 /* User states. Private between users, shared with loader. */
-typedef struct {
+typedef struct {    
     /* Status queues. */
     request_t *head;                /* Only used for teardown. */
     request_t *free;                /* Unused request_t structs. */
     request_t *ready;               /* Ready requests waiting to be executed. */
     request_t *done;                /* Fulfilled requests. */
     request_t *cleanup;             /* Waiting for backend resource cleanup. */
+
+    /* Queue statistics. */
+    size_t        queue_depth;  /* Number of entries initially in FREE. */
+    atomic_size_t in_flight;    /* Number of entries not in FREE. */
+
+    /* Debug parameters. */
+    int        debug_count;     /* In-flight io_uring entries. */
+    int        debug_limit;     /* Max DEBUG_COUNT value. 0 = no limit. */
+    request_t *bottleneck;      /* Requests that should be processed, but are
+                                   bottlenecked by DEBUG_LIMIT. */
 
     /* Asynchronous IO. */
     struct io_uring ring;
@@ -242,7 +252,7 @@ typedef struct {
 /* Creation/destruction methods. */
 cache_t *cache_new(void);
 void cache_destroy(cache_t *c);
-int cache_init(cache_t *c, size_t capacity, int queue_depth, int max_unsynced, int n_users);
+int cache_init(cache_t *c, size_t capacity, int debug_limit, int queue_depth, int max_unsynced, int n_users);
 
 /* Thread management methods. */
 int manager_spawn(cache_t *c);

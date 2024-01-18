@@ -44,13 +44,29 @@
 #include <fcntl.h>
 #include <sched.h>
 
-#define PORT_DEFAULT (8080)     /* Default port for TCP and UDP connections. */
-#define MAX_QUEUE_REQUESTS 64   /* Maximum number of queued network requests. */
-#define SOCKET_TIMEOUT_S (5)    /* Registrar loop socket timeout. */
-#define REGISTER_PERIOD_S (5)   /* Registrar loop broadcast period. */
+#define PORT_DEFAULT (8080)       /* Default port for TCP and UDP connections. */
+#define MAX_QUEUE_REQUESTS (4096) /* Maximum number of queued network requests. */
+#define SOCKET_TIMEOUT_S (5)      /* Registrar loop socket timeout. */
+#define REGISTER_PERIOD_S (5)     /* Registrar loop broadcast period. */
+#define OFF (0)
 
 #define LOG(level, fmt, ...) DEBUG_LOG(SCOPE_INT, level, fmt, ## __VA_ARGS__)
 #define MIN(a, b) ((a) > (b) ? (a) : (b))
+
+/* Wrapper for pthread_create. Arguments should be of the same type. COUNTER should
+   be a pointer to an atomic_size_t counter for the number of active threads. */
+#define PTHREAD_CREATE_DETACH(pid, attr, func, aux)                                                \
+    do {                                                                                           \
+        int status = pthread_create(pid, attr, func, aux);                                         \
+        if (status != 0) {                                                                         \
+            LOG(LOG_CRITICAL, "pthread_create failed; %s\n", strerror(status));                    \
+            exit(status);                                                                          \
+        }                                                                                          \
+        if ((status = pthread_detach(*pid)) != 0) {                                                \
+            LOG(LOG_CRITICAL, "unable to detach thread %lu; %s\n", *pid, strerror(status));        \
+            exit(status);                                                                          \
+        }                                                                                          \
+    } while (0)
 
 /* Fail if a spin lock does not init*/
 #define SPIN_MUST_INIT(spinlock)                                               \
@@ -178,7 +194,12 @@ network_get_message(int fd, message_t **out)
     /* Get the request header. */
     message_t *message = malloc(sizeof(message_t));
     if ((bytes = read(fd, (void *) message, sizeof(message_t))) != sizeof(message_t)) {
-        LOG(LOG_WARNING, "Received a message that was too short (%ld bytes).\n", bytes);
+        if (bytes < 0) {
+            LOG(LOG_ERROR, "read failed; %s\n", strerror(errno));
+        } else {
+            LOG(LOG_WARNING, "Received a message of invalid length (got %ld bytes, expected %ld bytes).\n", bytes, sizeof(message_t));
+        }
+
         free(message);
         return -EBADMSG;
     }
@@ -242,13 +263,17 @@ network_send_message(mtype_t type, int flags, const void *data, uint32_t size, i
         }
     }
     
-    /* Send the data. */
-    if ((bytes = send(fd, data, size, 0)) != size) {
-        if (bytes < 0) {
+    /* Send the data. Stop sending once all sent, or on failure to send. */
+    bytes = 0;
+    ssize_t temp;
+    while ((temp = send(fd, data + bytes, size, 0)) > 0 && (bytes += temp) != size) {}
+    if (bytes != size) {
+        if (temp < 0) {
             LOG(LOG_ERROR, "Failed to send payload; %s\n", strerror(errno));
             return -errno;
         } else {
-            LOG(LOG_ERROR, "Failed to send entire payload (%ld/%u bytes sent).\n", bytes, size);
+            LOG(LOG_ERROR, "Failed to send entire payload (%ld/%u bytes sent) MAX_QUEUE_REQUESTS = %d.\n",
+                bytes, size, MAX_QUEUE_REQUESTS);
             return -EAGAIN;
         }
     }
@@ -560,7 +585,7 @@ monitor_loop(void *args)
             /* This thread will terminate gracefully on its own and we don't
                need to track it. */
             pthread_t _;
-            pthread_create(&_, NULL, monitor_handle_connection, conn_args);
+            PTHREAD_CREATE_DETACH(&_, NULL, monitor_handle_connection, conn_args);
         }
     }
 
@@ -772,6 +797,7 @@ cache_local_load(lcache_t *lc, request_t *request)
 
     /* Fill the request. */
     request->size = loc->size;
+    request->shm_size = loc->shm_size;
     request->_ldata = loc->data;
     request->_lfd_shm = loc->shm_fd;
     request->_skip_clean = true; /* Don't purge this entry once we're done with
@@ -797,6 +823,7 @@ cache_remote_contains(rcache_t *rc, char *path)
 
 /* Arguments to cache_remote_load. */
 struct cache_remote_load_args {
+    cache_t   *c;
     rcache_t  *rc;
     ustate_t  *user;
     request_t *request;
@@ -810,9 +837,10 @@ static void *
 cache_remote_load(void *args)
 {
     /* Get the arguments passed to us. */
-    rcache_t *rc = ((struct cache_remote_load_args *) args)->rc;
-    ustate_t *user = ((struct cache_remote_load_args *) args)->user;
-    request_t *request = ((struct cache_remote_load_args *) args)->request;
+    struct cache_remote_load_args *load_args = (struct cache_remote_load_args *) args;
+    rcache_t *rc = load_args->rc;
+    ustate_t *user = load_args->user;
+    request_t *request = load_args->request;
     free(args);
 
     /* Find who to request the file from. */
@@ -938,16 +966,16 @@ manager_submit_io(ustate_t *ustate, request_t *r)
 }
 
 /* Check whether USTATE has any backend resources to be cleaned up. If resources
-   exist, clean up a single request_t struct per call. Returns 0 on success,
-   -errno on failure. */
-static void
+   exist, clean up a single request_t struct per call. Returns TRUE when a
+   resource was cleaned up, FALSE when there was nothing to clean up. */
+static bool
 manager_check_cleanup(cache_t *c, ustate_t *ustate)
 {
     /* Check if there's anything in the queue. */
     request_t *to_clean = NULL;
     QUEUE_POP_SAFE(ustate->cleanup, &ustate->cleanup_lock, next, prev, to_clean);
     if (to_clean == NULL) {
-        return;
+        return false;
     }
 
     assert(to_clean->path[0] != '\0');
@@ -971,6 +999,9 @@ manager_check_cleanup(cache_t *c, ustate_t *ustate)
 
     /* Move it to the free queue. */
     QUEUE_PUSH_SAFE(ustate->free, &ustate->free_lock, next, prev, to_clean);
+    atomic_fetch_sub(&ustate->in_flight, 1);
+
+    return true;
 }
 
 /* Check whether USTATE has a pending request and execute it if it does. Returns
@@ -978,11 +1009,20 @@ manager_check_cleanup(cache_t *c, ustate_t *ustate)
 static int
 manager_check_ready(cache_t *c, ustate_t *ustate)
 {
-    /* Check if there's a request waiting in the ready queue. */
     request_t *pending = NULL;
-    QUEUE_POP_SAFE(ustate->ready, &ustate->ready_lock, next, prev, pending);
+
+    /* Bottleneck is a debug setting. Process bottlenecked requests must be
+       processed first to maintain FIFO order. */
+    if (ustate->debug_limit != OFF && ustate->debug_count < ustate->debug_limit) {
+        QUEUE_POP(ustate->bottleneck, next, prev, pending);
+    }
+
+    /* Pop from the regular queue if not processing a bottlenecked request. */
     if (pending == NULL) {
-        return 0;
+        QUEUE_POP_SAFE(ustate->ready, &ustate->ready_lock, next, prev, pending);
+        if (pending == NULL) {
+            return 0;
+        }
     }
 
     /* Check the local cache. */
@@ -992,6 +1032,8 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
             LOG(LOG_ERROR, "cache_local_load failed; %s\n", strerror(-pending->status));
         }
         assert(pending->path[0] != '\0');
+        assert(pending->shm_size != 0);
+
         QUEUE_PUSH_SAFE(ustate->done, &ustate->done_lock, next, prev, pending);
 
         return 0;
@@ -1004,6 +1046,7 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
         if (args == NULL) {
             return -ENOMEM;
         }
+        args->c = c;
         args->rc = &c->rcache;
         args->request = pending;
         args->user = ustate;
@@ -1013,13 +1056,18 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
         /* Spawn a thread to handling requesting the file from the peer. It will
            take care of itself and doesn't require management. */
         pthread_t _;
-        int status = pthread_create(&_, NULL, cache_remote_load, args);
-        assert(!status);
+        PTHREAD_CREATE_DETACH(&_, NULL, cache_remote_load, args);
 
         return 0;
     }
 
-    /* If not cached, issue IO. */
+    /* File neither cached remotely nor locally. Unless DEBUG_LIMIT enabled,
+       submit this request to be loaded locally via io_uring. */
+    if (ustate->debug_limit != OFF && ustate->debug_count >= ustate->debug_limit) {
+        QUEUE_PUSH(ustate->bottleneck, next, prev, pending);
+        return 0;
+    }
+
     int status = manager_submit_io(ustate, pending);
     if (status < 0) {
         pending->status = status;
@@ -1028,6 +1076,7 @@ manager_check_ready(cache_t *c, ustate_t *ustate)
         LOG(LOG_ERROR, "manager_submit_io failed; %s\n", strerror(-status));
         return status;
     }
+    ustate->debug_count++;
 
     return 0;
 }
@@ -1044,6 +1093,13 @@ manager_check_done(cache_t *c, ustate_t *ustate)
     while (!io_uring_peek_cqe(&ustate->ring, &cqe)) {
         request_t *request = io_uring_cqe_get_data(cqe);
         io_uring_cqe_seen(&ustate->ring, cqe);
+        ustate->debug_count--;
+        if (cqe->res < 0) {
+            /* If io_uring's called to read() failed. */
+            LOG(LOG_ERROR, "asynchronous read failed; %s\n", strerror(-cqe->res));
+            request->status = cqe->res;
+            goto skip_cache;
+        }
 
         /* Try to cache this file. */
         if (c->lcache.used + request->shm_size <= c->lcache.capacity) {
@@ -1108,9 +1164,13 @@ manager_loop(void *args)
         }
 
         prev_length = c->lcache.n_unsynced;
-        manager_check_cleanup(c, ustate);
         manager_check_ready(c, ustate);
         manager_check_done(c, ustate);
+
+        /* Clean up all entries in this user state. Cleaning only a single entry
+           will cause a significant bottleneck to occur when there the requests
+           are saturated. */
+        while (manager_check_cleanup(c, ustate))
 
         /* Reset the idle count if we've got new unsynced data. Otherwise,
            continue to increment it. */
@@ -1118,8 +1178,6 @@ manager_loop(void *args)
             idle_iters = 0;
         } else {
             idle_iters++;
-            if (idle_iters % (8 * 1024 * 1024) == 0) {
-            }
         }
     }
 
@@ -1194,6 +1252,7 @@ cache_get_submit(ustate_t *user, char *path)
 {
     /* Generate request. */
     request_t *request = NULL;
+    atomic_fetch_add(&user->in_flight, 1);
     QUEUE_POP_SAFE(user->free, &user->free_lock, next, prev, request);
     if (request == NULL) {
         LOG(LOG_DEBUG, "Free queue is empty; no request_t structs available.\n");
@@ -1243,7 +1302,7 @@ cache_get_reap(ustate_t *user, request_t **out)
 
     /* Create the mmap. */
     if ((r->udata = mmap(NULL, r->shm_size, PROT_READ, MAP_PRIVATE, r->ufd_shm, 0)) == (void *) -1LL) {
-        LOG(LOG_ERROR, "mmap failed; %s\n", strerror(errno));
+        LOG(LOG_ERROR, "mmap failed (ufd_shm=%d, shm_size=%lu, status=%d); %s\n", r->ufd_shm, r->shm_size, r->status, strerror(errno));
         status = -errno;
         goto done;
     }
@@ -1335,6 +1394,7 @@ cache_destroy(cache_t *c)
 int
 cache_init(cache_t *c,
            size_t capacity,
+           int debug_limit,
            int queue_depth,
            int max_unsynced,
            int n_users)
@@ -1380,14 +1440,21 @@ cache_init(cache_t *c,
         ustate->ready = NULL;
         ustate->done = NULL;
         ustate->cleanup = NULL;
+        ustate->bottleneck = NULL;
 
         /* Initialize the io_uring queues. */
-        int status = io_uring_queue_init(queue_depth, &ustate->ring, 0);
+        int status = io_uring_queue_init(c->qdepth, &ustate->ring, 0);
         if (status < 0) {
             LOG(LOG_CRITICAL, "io_uring_queue_init failed.\n");
             cache_destroy(c);
             return status;
         }
+
+        /* Queue statistics. */
+        ustate->queue_depth = (size_t) queue_depth;
+        ustate->debug_count = 0;
+        ustate->debug_limit = debug_limit;
+        atomic_init(&ustate->in_flight, 0);
 
         /* Initialize the locks. */
         SPIN_MUST_INIT(&ustate->free_lock);
