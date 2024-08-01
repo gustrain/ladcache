@@ -1,7 +1,7 @@
 # LADCache - Locality Aware Distributed Cache
 *Based on ideas from "Accelerating Data Loading in Deep Neural Network Training" (2019)*
 
-## *Warning: this project is still a work-in-progress, and is not yet completely stable!*
+## *Warning: this project is aimed at reproducing the results from the original paper, and thus is not guaranteed to completely stable for all cases!*
 
 ![3-way demo](./assets/3-way-example.PNG)
 *Demo of distributed cache with three nodes, using the interactive test mode.*
